@@ -1002,8 +1002,7 @@ class EqualizerManager(
     ) {
         runCatching {
             if (state.isUsable) {
-                // Apply EQ
-                engine.setEnabled(true)
+                // Apply EQ profile first, then enable
                 engine.setProfile(profile)
 
                 // Apply Bass Boost
@@ -1050,6 +1049,9 @@ class EqualizerManager(
                         engine.setLimiterState(LimiterState.Unspecified)
                     }
                 }.onFailure { Log.e(TAG, "Error setting up limiter!", it) }
+
+                // Enable the engine last, after all parameters are set
+                engine.setEnabled(true)
             } else {
                 engine.setEnabled(false)
                 engine.setVirtualizerState(VirtualizerState.Unspecified)
