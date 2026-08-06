@@ -7,12 +7,7 @@ import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import com.mardous.booming.R
-import com.mardous.booming.extensions.currentFragment
-import com.mardous.booming.ui.component.base.goToDestination
-import com.mardous.booming.ui.screen.MainActivity
 import com.mardous.booming.ui.screen.lyrics.CoverLyricsScreen
-import com.mardous.booming.ui.screen.lyrics.LyricsFragment
 import com.mardous.booming.ui.screen.lyrics.LyricsViewModel
 import com.mardous.booming.ui.screen.player.PlayerViewModel
 import com.mardous.booming.ui.theme.BoomingMusicTheme
@@ -38,11 +33,8 @@ class CoverLyricsFragment : Fragment() {
                         lyricsViewModel,
                         playerViewModel,
                         onExpandClick = {
-                            if (currentFragment(R.id.fragment_container) is LyricsFragment) {
-                                (activity as? MainActivity)?.collapsePanel()
-                            } else {
-                                goToDestination(requireActivity(), R.id.nav_lyrics)
-                            }
+                            // 歌词切换按钮：隐藏歌词，回到封面
+                            (parentFragment as? CoverPagerFragment)?.hideLyrics(true)
                         })
                 }
             }

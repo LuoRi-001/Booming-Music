@@ -14,15 +14,17 @@ import com.mardous.booming.data.local.room.*
         PlayCountEntity::class,
         QueueEntity::class,
         InclExclEntity::class,
-        LyricsEntity::class
+        LyricsEntity::class,
+        PlaybackEventEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 abstract class BoomingDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun playCountDao(): PlayCountDao
     abstract fun historyDao(): HistoryDao
+    abstract fun playbackEventDao(): PlaybackEventDao
     abstract fun queueDao(): QueueDao
     abstract fun inclExclDao(): InclExclDao
     abstract fun lyricsDao(): LyricsDao
@@ -62,6 +64,26 @@ abstract class BoomingDatabase : RoomDatabase() {
                         lyrics TEXT,
                         provider TEXT,
                         is_instrumental INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE PlayCountEntity ADD COLUMN total_play_duration_ms INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Event-level play history for time-range listening stats.
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `PlaybackEventEntity` (
+                        `song_id` INTEGER NOT NULL,
+                        `time_played` INTEGER NOT NULL,
+                        `duration_ms` INTEGER NOT NULL,
+                        PRIMARY KEY(`song_id`, `time_played`)
                     )
                 """.trimIndent())
             }

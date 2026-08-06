@@ -92,6 +92,7 @@
     <string name="remove_x_songs_from_playlist"><![CDATA[从播放列表中移除 <b>%1$d</b> 首歌曲？]]></string>
     <string name="playlist_empty_text">空的播放列表</string>
     <string name="action_lyrics_editor">歌词编辑器</string>
+    <string name="action_song_details">歌曲信息</string>
     <string name="action_tag_editor">标签编辑器</string>
     <string name="saving_changes">正在保存更改</string>
     <string name="changes_saved_successfully">更改已成功保存。</string>
@@ -194,6 +195,7 @@
     <string name="last_added_label">上次添加</string>
     <string name="top_tracks_label">热门曲目</string>
     <string name="history_label">历史记录</string>
+    <string name="recently_played">最近播放</string>
     <string name="not_recently_played">近期未播放</string>
     <string name="play_info">播放信息</string>
     <string name="track_play_counts">曲目播放计数</string>
@@ -516,6 +518,8 @@
     <string name="lyrics_preferences_summary">调整字体、 间距和其他选项以自定义您的歌词视图。</string>
     <string name="playback_title">播放</string>
     <string name="playback_summary">更改声音设置，蓝牙耳机等。</string>
+    <string name="equalizer_title">均衡器</string>
+    <string name="equalizer_summary">调整音效和音频设置。</string>
     <string name="metadata_title">元数据</string>
     <string name="library_title">曲库</string>
     <string name="library_summary">播放列表和排除/包含过滤器的设置。</string>
@@ -714,6 +718,10 @@
     <string name="blacklist_summary">黑名单文件夹中的内容会在您的曲库中隐藏。</string>
     <string name="artist_min_songs_title">艺术家最小歌曲计数</string>
     <string name="artist_min_songs_summary">设置一位艺术家需要有（至少）多少曲目，才会显示在您的曲库中。</string>
+    <string name="artist_separators_title">艺人分隔符</string>
+    <string name="artist_separators_summary">用于拆分一首歌中的多个歌手（例如 "A、B" 会拆成两个艺人）。输入的每个字符都是一个独立的分隔符。</string>
+    <string name="artist_separators_summary_current">用于拆分一首歌中的多个歌手（例如 "A、B" 会拆成两个艺人）。输入的每个字符都是一个独立的分隔符。当前：%1$s</string>
+    <string name="artist_separators_default">、&amp;/,</string>
     <string name="album_min_songs_title">专辑最小歌曲计数</string>
     <string name="album_min_songs_summary">设置一张专辑需要有（至少）多少曲目，才会显示在您的曲库中。</string>
     <string name="min_song_duration_title">最小歌曲持续时间</string>
@@ -947,4 +955,35 @@
     <string name="app_description">现代设计 · 纯净听感 · 由你定义</string>
     <string name="more_contributors_title">更多贡献者</string>
     <string name="more_contributors_summary">您可以在 GitHub 上查看完整的贡献者名单。</string>
+
+    <!-- Listening stats -->
+    <string name="listening_stats">听歌统计</string>
+    <string name="listening_stats_subtitle">查看你的音乐收听记录</string>
+    <string name="listening_stats_duration_header">收听时长</string>
+    <string name="listening_stats_ranking_header">歌曲排行</string>
+    <string name="listening_stats_today">今日</string>
+    <string name="listening_stats_week">本周</string>
+    <string name="listening_stats_month">本月</string>
+    <string name="listening_stats_year">本年</string>
+    <string name="listening_stats_all_time">总计</string>
+    <string name="listening_stats_no_data">暂无数据</string>
+    <string name="listening_stats_total_hint">累计收听时长</string>
+
+    <!-- Stats screen (PixelPlayer style) -->
+    <string name="stats_hero_listening">收听时长</string>
+    <string name="stats_hero_plays">播放次数</string>
+    <string name="stats_section_listening_timeline">收听时间线</string>
+    <string name="stats_section_top_songs">歌曲排行</string>
+    <string name="stats_section_top_artists">热门艺术家</string>
+    <string name="stats_timeline_metric_time">时长</string>
+    <string name="stats_timeline_metric_count">次数</string>
+    <string name="stats_dim_song">歌曲</string>
+    <string name="stats_dim_artist">艺术家</string>
+    <string name="stats_n_plays">%d 次播放</string>
+    <string name="stats_plays_tracks">%d 次播放 · %d 首歌曲</string>
+    <string name="stats_empty_no_data">暂无听歌数据</string>
+    <string name="stats_empty_no_data_desc">开始播放音乐来生成统计</string>
+    <string name="stats_loading">加载中…</string>
+    <string name="stats_show_all">显示全部</string>
+    <string name="stats_collapse">收起</string>
 </resources>

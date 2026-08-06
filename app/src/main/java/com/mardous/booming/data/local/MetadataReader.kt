@@ -31,8 +31,10 @@ class MetadataReader(uri: Uri, readPictures: Boolean = false) : KoinComponent {
     init {
         try {
             get<ContentResolver>().openFileDescriptor(uri, "r")?.use {
-                metadata = TagLib.getMetadata(it.dup().detachFd(), readPictures = readPictures)
-                audioProperties = TagLib.getAudioProperties(it.dup().detachFd())
+                synchronized(TagLibMutex.lock) {
+                    metadata = TagLib.getMetadata(it.dup().detachFd(), readPictures = readPictures)
+                    audioProperties = TagLib.getAudioProperties(it.dup().detachFd())
+                }
             }
         } catch (t: Throwable) {
             Log.e("MetadataWorker", "Error reading file $uri", t)

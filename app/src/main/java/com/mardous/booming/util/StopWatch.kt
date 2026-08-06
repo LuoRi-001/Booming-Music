@@ -61,8 +61,10 @@ class StopWatch {
      */
     fun pause() {
         synchronized(this) {
-            previousElapsedTime += System.currentTimeMillis() - startTime
-            isRunning = false
+            if (isRunning) {
+                previousElapsedTime += System.currentTimeMillis() - startTime
+                isRunning = false
+            }
         }
     }
 

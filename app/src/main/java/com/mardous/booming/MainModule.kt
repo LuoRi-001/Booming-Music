@@ -150,8 +150,10 @@ private val roomModule = module {
                 BoomingDatabase.MIGRATION_2_3,
                 BoomingDatabase.MIGRATION_3_4,
                 BoomingDatabase.MIGRATION_4_5,
-                BoomingDatabase.MIGRATION_5_6
+                BoomingDatabase.MIGRATION_5_6,
+                BoomingDatabase.MIGRATION_6_7
             )
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -165,6 +167,10 @@ private val roomModule = module {
 
     factory {
         get<BoomingDatabase>().historyDao()
+    }
+
+    factory {
+        get<BoomingDatabase>().playbackEventDao()
     }
 
     factory {
@@ -238,7 +244,8 @@ private val dataModule = module {
             albumRepository = get(),
             artistRepository = get(),
             historyDao = get(),
-            playCountDao = get()
+            playCountDao = get(),
+            playbackEventDao = get()
         )
     } bind SmartRepository::class
 

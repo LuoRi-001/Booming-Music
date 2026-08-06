@@ -18,6 +18,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.ColumnInfo
 import com.mardous.booming.data.mapper.toPlayCount
 import com.mardous.booming.data.model.Song
 import kotlinx.coroutines.flow.Flow
@@ -44,13 +45,17 @@ interface PlayCountDao {
     suspend fun findSongExistInPlayCount(songId: Long): PlayCountEntity?
 
     @Transaction
-    suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long) {
+    suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long = 0L) {
+        // Reject invalid songs (e.g. Song.emptySong with id=-1, data="")
+        if (song.id < 0 || song.data.isEmpty()) return
+
         val playCountEntity = findSongExistInPlayCount(song.id)
             ?: song.toPlayCount(timePlayed = timePlayed)
 
         upsertSongInPlayCount(
             playCountEntity.copy(
                 playCount = playCountEntity.playCount + 1,
+                totalPlayDurationMs = playCountEntity.totalPlayDurationMs + actualDurationMs,
                 timePlayed = timePlayed
             )
         )
@@ -58,6 +63,8 @@ interface PlayCountDao {
 
     @Transaction
     suspend fun insertOrIncrementSkipCount(song: Song) {
+        if (song.id < 0 || song.data.isEmpty()) return
+
         val playCountEntity = findSongExistInPlayCount(song.id)
             ?: song.toPlayCount()
 
@@ -70,6 +77,20 @@ interface PlayCountDao {
     @Query("SELECT * FROM PlayCountEntity WHERE play_count > 0 ORDER BY play_count DESC LIMIT :limit")
     fun playCountSongsFlow(limit: Int = PLAY_COUNT_LIMIT): Flow<List<PlayCountEntity>>
 
+    @Query("SELECT COALESCE(SUM(total_play_duration_ms), 0) FROM PlayCountEntity WHERE (:cutoff = 0 OR time_played > :cutoff)")
+    fun totalDurationSince(cutoff: Long = 0): Flow<Long>
+
+    @Query("DELETE FROM PlayCountEntity WHERE id < 0 OR data = ''")
+    suspend fun cleanInvalidEntries()
+
     @Query("DELETE FROM PlayCountEntity")
     suspend fun clearPlayCount()
+
+    @Query("SELECT time_played, total_play_duration_ms FROM PlayCountEntity WHERE time_played > :cutoff ORDER BY time_played ASC")
+    suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry>
 }
+
+data class PlaybackTimeEntry(
+    @ColumnInfo(name = "time_played") val timePlayed: Long,
+    @ColumnInfo(name = "total_play_duration_ms") val totalPlayDurationMs: Long
+)

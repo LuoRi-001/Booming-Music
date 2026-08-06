@@ -307,7 +307,7 @@ class EqualizerManager(
 
     init {
         eqState.filterNot { it == EqState.Unspecified }
-            .debounce(100)
+            .debounce(10)
             .onEach { newState ->
                 val isDisabled = newState.isDisabledByReason
                 if (eqEngine == null && eqSession.id != NO_SESSION_ID && !isDisabled) {
@@ -316,6 +316,12 @@ class EqualizerManager(
                         sessionId = eqSession.id,
                         bandCount = newState.preferredBandCount
                     )
+                } else if (eqEngine != null && newState.isUsable && !isDisabled) {
+                    // Engine already exists but may have been initialized with stale
+                    // state (e.g., Unspecified before DataStore loaded). Re-apply the
+                    // correct configuration now — setSession() below would early-return
+                    // because the EqSession hasn't changed.
+                    applyChangesToEngine(engine = eqEngine, state = newState)
                 }
                 if (!isDisabled) {
                     if (newState.isUsable) {
@@ -374,13 +380,24 @@ class EqualizerManager(
         try {
             val effects = AudioEffect.queryEffects().orEmpty()
             context.eqDataStore.edit { prefs ->
-                val eqInitialized = prefs[Keys.EQ_INITIALIZED]
-                if (eqInitialized != true) {
+                val eqConfigVersion = prefs[Keys.EQ_CONFIG_VERSION] ?: 0
+                if (eqConfigVersion < CURRENT_EQ_CONFIG_VERSION) {
+                    // Migrate: force Basic (safe default) and rebuild presets.
+                    // v0→v1: DynamicsProcessing was previously Auto default on
+                    //   API≥P, causing static/noise on Qualcomm ADSP devices.
+                    prefs[Keys.EQ_ENGINE_MODE] = EqEngineMode.Basic.ordinal
+                    prefs[Keys.PRESETS] = Json.encodeToString(
+                        getPresetsByBandCount(EqEngineMode.Basic.defaultBandCount)
+                    )
+                    prefs[Keys.EQ_INITIALIZED] = true
+                    prefs[Keys.EQ_CONFIG_VERSION] = CURRENT_EQ_CONFIG_VERSION
+                } else if (prefs[Keys.EQ_INITIALIZED] != true) {
                     prefs[Keys.EQ_ENGINE_MODE] = engineMode.ordinal
                     prefs[Keys.PRESETS] = Json.encodeToString(
                         getPresetsByBandCount(engineMode.defaultBandCount)
                     )
                     prefs[Keys.EQ_INITIALIZED] = true
+                    prefs[Keys.EQ_CONFIG_VERSION] = CURRENT_EQ_CONFIG_VERSION
                 }
                 prefs[Keys.EQ_SUPPORTED] = effects.any {
                     it.type == engineMode.type
@@ -700,7 +717,12 @@ class EqualizerManager(
                             bandCount = eqState.preferredBandCount
                         )
                     }
-                    eqEngine?.setEnabled(true)
+                    // Always apply full config before enabling — createEngine() may
+                    // have used a stale eqState (Unspecified) due to a startup race
+                    // between DataStore loading and the audio session being created.
+                    if (eqState.isUsable) {
+                        applyChangesToEngine(engine = eqEngine, state = eqState)
+                    }
                 }
 
                 SessionType.External -> {
@@ -959,7 +981,8 @@ class EqualizerManager(
                 BasicEQEngine(sessionId)
             }
         }.onSuccess { newEngine ->
-            applyChangesToEngine(engine = newEngine)
+            // Start disabled — caller must apply full config before enabling
+            newEngine.setEnabled(false)
             setBandCapabilities(newEngine.bandCapabilities)
         }.onFailure {
             Log.e(TAG, "Failed to open EQ session", it)
@@ -1005,50 +1028,30 @@ class EqualizerManager(
                 // Apply EQ profile first, then enable
                 engine.setProfile(profile)
 
-                // Apply Bass Boost
-                runCatching {
-                    if (bassBoostState.isUsable) {
-                        engine.setBassBoostState(bassBoostState)
-                    } else {
-                        engine.setBassBoostState(BassBoostState.Unspecified)
-                    }
-                }.onFailure { Log.e(TAG, "Error setting up bass boost!", it) }
+                // Only touch extra effects when the user explicitly enabled them.
+                // Creating them just to disable wastes DSP resources and causes
+                // static/noise on some hardware.
+                if (bassBoostState.isUsable) {
+                    engine.setBassBoostState(bassBoostState)
+                }
 
-                // Apply Virtualizer
-                runCatching {
-                    if (virtualizerState.isUsable) {
-                        engine.setVirtualizerState(virtualizerState)
-                    } else {
-                        engine.setVirtualizerState(VirtualizerState.Unspecified)
-                    }
-                }.onFailure { Log.e(TAG, "Error setting up virtualizer!", it) }
+                if (virtualizerState.isUsable) {
+                    engine.setVirtualizerState(virtualizerState)
+                }
 
-                // Apply Loudness Enhancer
-                runCatching {
-                    if (loudnessGainState.isUsable) {
-                        engine.setLoudnessGainState(loudnessGainState)
-                    } else {
-                        engine.setLoudnessGainState(LoudnessGainState.Unspecified)
-                    }
-                }.onFailure { Log.e(TAG, "Error setting up loudness enhancer!", it) }
+                if (loudnessGainState.isUsable) {
+                    engine.setLoudnessGainState(loudnessGainState)
+                }
 
                 // Apply Compressor
-                runCatching {
-                    if (engine.isMBCSupported && compressorState.enabled && state.proMode) {
-                        engine.setCompressorState(compressorState)
-                    } else {
-                        engine.setCompressorState(CompressorState.Unspecified)
-                    }
-                }.onFailure { Log.e(TAG, "Error setting up compressor!", it) }
+                if (engine.isMBCSupported && compressorState.enabled && state.proMode) {
+                    engine.setCompressorState(compressorState)
+                }
 
                 // Apply Limiter
-                runCatching {
-                    if (engine.isLimiterSupported && limiterState.enabled && state.proMode) {
-                        engine.setLimiterState(limiterState)
-                    } else {
-                        engine.setLimiterState(LimiterState.Unspecified)
-                    }
-                }.onFailure { Log.e(TAG, "Error setting up limiter!", it) }
+                if (engine.isLimiterSupported && limiterState.enabled && state.proMode) {
+                    engine.setLimiterState(limiterState)
+                }
 
                 // Enable the engine last, after all parameters are set
                 engine.setEnabled(true)
@@ -1081,6 +1084,7 @@ class EqualizerManager(
 
     interface Keys {
         companion object {
+            val EQ_CONFIG_VERSION = intPreferencesKey("eq.config.version")
             val EQ_INITIALIZED = booleanPreferencesKey("eq.initialized")
             val EQ_ENABLED = booleanPreferencesKey("eq.enabled")
             val EQ_SUPPORTED = booleanPreferencesKey("eq.supported")
@@ -1137,6 +1141,10 @@ class EqualizerManager(
         private const val TAG = "EqualizerManager"
 
         private const val NO_SESSION_ID = 0
+
+        // Bump this to force re-initialization of EQ config on next app start.
+        // 0 = initial, 1 = migrate from DynamicsProcessing (Auto default) to Basic.
+        private const val CURRENT_EQ_CONFIG_VERSION = 1
 
         const val MINIMUM_LOUDNESS_GAIN = 0f
         const val MAXIMUM_LOUDNESS_GAIN = 40f

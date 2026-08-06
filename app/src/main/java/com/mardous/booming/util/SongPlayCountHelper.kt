@@ -8,8 +8,11 @@ class SongPlayCountHelper {
     var song = Song.emptySong
         private set
 
+    val actualListeningTime: Long
+        get() = stopWatch.elapsedTime
+
     fun shouldBumpPlayCount(): Boolean {
-        return song.duration * 0.5 < stopWatch.elapsedTime
+        return stopWatch.elapsedTime >= MIN_LISTEN_MS
     }
 
     fun notifySongChanged(song: Song, isPlaying: Boolean) {
@@ -33,6 +36,7 @@ class SongPlayCountHelper {
     }
 
     companion object {
+        private const val MIN_LISTEN_MS = 5000L
         val TAG: String = SongPlayCountHelper::class.java.simpleName
     }
 }

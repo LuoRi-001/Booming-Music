@@ -88,6 +88,10 @@ enum class NowPlayingAction(
         iconRes = R.drawable.ic_fast_forward_24dp,
         titleRes = R.string.action_seek_forward
     ),
+    SongDetails(
+        iconRes = R.drawable.ic_info_24dp,
+        titleRes = R.string.action_song_details
+    ),
     Nothing(
         iconRes = R.drawable.ic_close_24dp,
         titleRes = R.string.label_nothing

@@ -47,6 +47,7 @@ import com.mardous.booming.extensions.setSupportActionBar
 import com.mardous.booming.extensions.topLevelTransition
 import com.mardous.booming.extensions.whichFragment
 import com.mardous.booming.ui.IScrollHelper
+import com.mardous.booming.ui.component.views.TopAppBarLayout
 import com.mardous.booming.ui.dialogs.playlists.ImportPlaylistDialog
 import com.mardous.booming.ui.screen.other.ShuffleModeFragment
 import kotlinx.coroutines.delay
@@ -65,6 +66,7 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
 
     val toolbar: Toolbar get() = binding.appBarLayout.toolbar
     val shuffleButton: FloatingActionButton get() = binding.shuffleButton
+    protected val appBarLayout: TopAppBarLayout get() = binding.appBarLayout
 
     abstract val isShuffleVisible: Boolean
     abstract val titleRes: Int

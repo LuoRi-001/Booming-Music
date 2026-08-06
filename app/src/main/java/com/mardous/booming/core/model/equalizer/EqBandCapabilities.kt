@@ -27,20 +27,25 @@ class EqBandCapabilities(
         bandConfigurations.any { it.bandCount == bandCount }
 
     fun getFrequencies(bandCount: Int): IntArray {
-        return bandConfigurations.first { it.bandCount == bandCount }.bandFrequenciesInHz
+        val config = bandConfigurations.firstOrNull { it.bandCount == bandCount }
+            ?: bandConfigurations.first()
+        return config.bandFrequenciesInHz
     }
 
     fun getBands(profile: EqProfile, bandCount: Int): List<EqBand> {
         if (bandConfigurations.isEmpty())
             return emptyList()
 
-        val freqInHz = bandConfigurations.first { it.bandCount == bandCount }.bandFrequenciesInHz
-        val levels = if (profile.isValid && profile.levels.size == bandCount) {
+        val config = bandConfigurations.firstOrNull { it.bandCount == bandCount }
+            ?: bandConfigurations.first()
+        val freqInHz = config.bandFrequenciesInHz
+        val actualBandCount = config.bandCount
+        val levels = if (profile.isValid && profile.levels.size == actualBandCount) {
             profile.levels
         } else {
-            FloatArray(bandCount)
+            FloatArray(actualBandCount)
         }
-        return (0 until bandCount).map {
+        return (0 until actualBandCount).map {
             EqBand(
                 index = it,
                 value = levels[it],

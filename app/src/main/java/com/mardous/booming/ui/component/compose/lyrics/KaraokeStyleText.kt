@@ -117,7 +117,7 @@ fun KaraokeLineView(
         val lineEnd = rowRenderData.last().lastWordEnd
         val lineHasAlreadyPassed = currentMillis >= lineEnd && !selectedLine
         val animatedAlpha by animateFloatAsState(
-            targetValue = if (lineHasAlreadyPassed) .4f else 1f,
+            targetValue = if (lineHasAlreadyPassed) .3f else 1f,
             animationSpec = tween(400)
         )
 
@@ -420,7 +420,7 @@ private fun DrawScope.drawLyricsLine(
                 currentTimeMs = currentTimeMs,
                 rtlContent = rtlContent,
                 activeColor = contentColor,
-                inactiveColor = contentColor.copy(alpha = 0.4f)
+                inactiveColor = contentColor.copy(alpha = 0.3f)
             )
 
             drawRect(

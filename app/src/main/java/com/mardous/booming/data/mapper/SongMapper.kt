@@ -160,6 +160,7 @@ fun Song.toPlayCount(timePlayed: Long = -1, playCount: Int = 0, skipCount: Int =
         genreName = genreName,
         timePlayed = timePlayed,
         playCount = playCount,
-        skipCount = skipCount
+        skipCount = skipCount,
+        totalPlayDurationMs = 0L
     )
 }

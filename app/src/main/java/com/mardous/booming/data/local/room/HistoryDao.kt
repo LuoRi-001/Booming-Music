@@ -62,6 +62,9 @@ interface HistoryDao {
     LIMIT :limit""")
     suspend fun notPlayedSongIds(cutoff: Long = 0, limit: Int = HISTORY_LIMIT): List<Long>
 
+    @Query("SELECT COALESCE(SUM(duration), 0) FROM HistoryEntity WHERE (:cutoff = 0 OR time_played > :cutoff)")
+    suspend fun totalDurationSince(cutoff: Long): Long
+
     @Query("DELETE FROM HistoryEntity")
     suspend fun clearHistory()
 }

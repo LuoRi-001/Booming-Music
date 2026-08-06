@@ -70,6 +70,7 @@ import com.mardous.booming.extensions.navigation.albumDetailArgs
 import com.mardous.booming.extensions.navigation.artistDetailArgs
 import com.mardous.booming.extensions.navigation.findActivityNavController
 import com.mardous.booming.extensions.navigation.genreDetailArgs
+import com.mardous.booming.extensions.navigation.songDetailArgs
 import com.mardous.booming.extensions.resources.animateBackgroundColor
 import com.mardous.booming.extensions.resources.animateTintColor
 import com.mardous.booming.extensions.resources.inflateMenu
@@ -89,6 +90,8 @@ import com.mardous.booming.ui.screen.lyrics.LyricsEditorFragmentArgs
 import com.mardous.booming.ui.screen.lyrics.LyricsFragment
 import com.mardous.booming.ui.screen.player.PlayerGesturesController
 import com.mardous.booming.ui.screen.player.PlayerGesturesController.GestureType
+import com.mardous.booming.ui.screen.info.SongDetailFragment
+import com.mardous.booming.ui.screen.info.SongDetailFragmentArgs
 import com.mardous.booming.ui.screen.player.PlayerViewModel
 import com.mardous.booming.ui.screen.player.cover.CoverPagerFragment
 import com.mardous.booming.ui.screen.tageditor.SongTagEditorActivity
@@ -522,6 +525,14 @@ abstract class AbsPlayerFragment(@LayoutRes layoutRes: Int) : Fragment(layoutRes
 
             NowPlayingAction.SeekForward -> {
                 playerViewModel.seekForward()
+                true
+            }
+
+            NowPlayingAction.SongDetails -> {
+                val detailFragment = SongDetailFragment().apply {
+                    arguments = SongDetailFragmentArgs.Builder(currentSong).build().toBundle()
+                }
+                detailFragment.show(childFragmentManager, "SONG_DETAILS")
                 true
             }
 

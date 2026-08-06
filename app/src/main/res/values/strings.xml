@@ -104,6 +104,7 @@
     <string name="remove_x_songs_from_playlist"><![CDATA[Remove <b>%1$d</b> songs from the playlist?]]></string>
     <string name="playlist_empty_text">Empty playlist</string>
     <string name="action_lyrics_editor">Lyrics editor</string>
+    <string name="action_song_details">Song details</string>
     <string name="action_tag_editor">Tag editor</string>
     <string name="saving_changes">Saving changes</string>
     <string name="changes_saved_successfully">Changes saved successfully.</string>
@@ -208,6 +209,7 @@
     <string name="last_added_label">Last added</string>
     <string name="top_tracks_label">Top Tracks</string>
     <string name="history_label">History</string>
+    <string name="recently_played">Recently Played</string>
     <string name="not_recently_played">Not Recently Played</string>
     <string name="play_info">Play info</string>
     <string name="track_play_counts">Track Play Counts</string>
@@ -629,6 +631,8 @@
     <string name="lyrics_preferences_summary">Adjust font, spacing, and other options to personalize your lyrics view.</string>
     <string name="playback_title">Playback</string>
     <string name="playback_summary">Change the sound settings, Bluetooth headsets, etc.</string>
+    <string name="equalizer_title">Equalizer</string>
+    <string name="equalizer_summary">Adjust the sound effects and audio settings.</string>
     <string name="library_title">Library</string>
     <string name="library_summary">Settings for playlists and exclusion/inclusion filters.</string>
     <string name="network_title">Network</string>
@@ -864,6 +868,10 @@
     <string name="blacklist_summary">The content of blacklisted folders is hidden from your library.</string>
     <string name="artist_min_songs_title">Artist minimum song count</string>
     <string name="artist_min_songs_summary">How many songs (at least) must have an artist to be shown in your library.</string>
+    <string name="artist_separators_title">Artist separators</string>
+    <string name="artist_separators_summary">Characters used to split multiple artists in a song (e.g. "A、B" becomes two artists). Every character you type is a separate separator.</string>
+    <string name="artist_separators_summary_current">Characters used to split multiple artists in a song (e.g. "A、B" becomes two artists). Every character you type is a separate separator. Current: %1$s</string>
+    <string name="artist_separators_default">、&amp;/,</string>
     <string name="album_min_songs_title">Album minimum song count</string>
     <string name="album_min_songs_summary">How many songs (at least) must have an album to be shown in your library.</string>
     <string name="min_song_duration_title">Minimum song duration</string>
@@ -1003,4 +1011,35 @@
     <string name="uncaught_error_restart_app">Restart app</string>
     <string name="uncaught_error_github">Open issue on GitHub</string>
     <string name="uncaught_error_send">Send report</string>
+
+    <!-- Listening stats -->
+    <string name="listening_stats">Listening Stats</string>
+    <string name="listening_stats_subtitle">View your listening history</string>
+    <string name="listening_stats_duration_header">Listening Duration</string>
+    <string name="listening_stats_ranking_header">Song Ranking</string>
+    <string name="listening_stats_today">Today</string>
+    <string name="listening_stats_week">This Week</string>
+    <string name="listening_stats_month">This Month</string>
+    <string name="listening_stats_year">This Year</string>
+    <string name="listening_stats_all_time">All Time</string>
+    <string name="listening_stats_no_data">No data</string>
+    <string name="listening_stats_total_hint">Total listening time</string>
+
+    <!-- Stats screen (PixelPlayer style) -->
+    <string name="stats_hero_listening">Listening Time</string>
+    <string name="stats_hero_plays">Plays</string>
+    <string name="stats_section_listening_timeline">Listening Timeline</string>
+    <string name="stats_section_top_songs">Top Songs</string>
+    <string name="stats_section_top_artists">Top Artists</string>
+    <string name="stats_timeline_metric_time">Time</string>
+    <string name="stats_timeline_metric_count">Count</string>
+    <string name="stats_dim_song">Songs</string>
+    <string name="stats_dim_artist">Artists</string>
+    <string name="stats_n_plays">%d plays</string>
+    <string name="stats_plays_tracks">%d plays · %d tracks</string>
+    <string name="stats_empty_no_data">No listening data yet</string>
+    <string name="stats_empty_no_data_desc">Start playing music to see your stats</string>
+    <string name="stats_loading">Loading…</string>
+    <string name="stats_show_all">Show all</string>
+    <string name="stats_collapse">Collapse</string>
 </resources>

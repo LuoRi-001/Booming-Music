@@ -33,6 +33,7 @@ import androidx.core.view.updatePadding
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -73,6 +74,7 @@ import com.mardous.booming.ui.screen.lyrics.LyricsViewModel
 import com.mardous.booming.ui.screen.update.UpdateSearchResult
 import com.mardous.booming.ui.screen.update.UpdateViewModel
 import com.mardous.booming.util.ADD_EXTRA_CONTROLS
+import com.mardous.booming.util.ARTIST_SEPARATORS
 import com.mardous.booming.util.BACKUP_DATA
 import com.mardous.booming.util.BLACKLIST_ENABLED
 import com.mardous.booming.util.BLACK_THEME
@@ -306,6 +308,9 @@ open class PreferenceScreenFragment : PreferenceFragmentCompat(),
                 true
             }
 
+        findPreference<EditTextPreference>(ARTIST_SEPARATORS)?.summary =
+            getString(R.string.artist_separators_summary_current, Preferences.artistSeparators)
+
         findPreference<SwitchWithButtonPreference>(WHITELIST_ENABLED)?.apply {
             setButtonPressedListener(object : SwitchWithButtonPreference.OnButtonPressedListener {
                 override fun onButtonPressed() {
@@ -443,12 +448,25 @@ open class PreferenceScreenFragment : PreferenceFragmentCompat(),
                 findActivityNavController(R.id.fragment_container).navigate(R.id.nav_about)
                 true
             }
+            preference.key == "equalizer" -> {
+                // The settings screen lives in its own nav graph; the
+                // equalizer destination is in the main graph (fragment_container).
+                findActivityNavController(R.id.fragment_container).navigate(R.id.nav_equalizer)
+                true
+            }
             else -> super.onPreferenceTreeClick(preference)
         }
     }
 
     override fun onSharedPreferenceChanged(preferences: SharedPreferences, key: String?) {
         when (key) {
+            ARTIST_SEPARATORS -> {
+                findPreference<EditTextPreference>(ARTIST_SEPARATORS)?.summary =
+                    getString(R.string.artist_separators_summary_current, Preferences.artistSeparators)
+                libraryViewModel.forceReload(ReloadType.Artists)
+                libraryViewModel.forceReload(ReloadType.Suggestions)
+            }
+
             NOW_PLAYING_SCREEN -> onUpdateNowPlayingScreen()
             COVER_DOUBLE_TAP_ACTION,
             COVER_LEFT_DOUBLE_TAP_ACTION,

@@ -356,6 +356,15 @@ object Preferences : KoinComponent {
         get() = preferences.getBoolean(ONLY_ALBUM_ARTISTS, true)
         set(value) = preferences.edit { putBoolean(ONLY_ALBUM_ARTISTS, value) }
 
+    /**
+     * Characters used to split multiple artists in a song's artist field
+     * (e.g. "A、B" with separator '、' produces artists "A" and "B").
+     * Every character in the string is a single separator.
+     */
+    var artistSeparators: String
+        get() = preferences.getString(ARTIST_SEPARATORS, DEFAULT_ARTIST_SEPARATORS)!!
+        set(value) = preferences.edit { putString(ARTIST_SEPARATORS, value) }
+
     val trashMusicFiles: Boolean
         get() = preferences.getBoolean(TRASH_MUSIC_FILES, false)
 
@@ -616,6 +625,8 @@ const val IGNORE_MEDIA_STORE = "ignore_media_store"
 const val USE_FOLDER_ART = "use_folder_art"
 const val PREFERRED_IMAGE_SIZE = "preferred_image_size"
 const val ONLY_ALBUM_ARTISTS = "only_album_artists"
+const val ARTIST_SEPARATORS = "artist_separators"
+const val DEFAULT_ARTIST_SEPARATORS = "、&/,"
 const val TRASH_MUSIC_FILES = "trash_music_files"
 const val RECURSIVE_FOLDER_ACTIONS = "recursive_folder_actions"
 const val ENABLE_HISTORY = "enable_history_playlist"

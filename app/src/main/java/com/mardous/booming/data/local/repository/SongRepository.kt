@@ -358,9 +358,11 @@ class RealSongRepository(
             AudioColumns.ALBUM_ARTIST, //13
         )
 
-        fun getAudioContentUri(): Uri = if (hasQ())
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        fun getAudioContentUri(): Uri = when {
+            hasR() -> MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            hasQ() -> MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            else -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        }
 
         fun getBaseProjection(idColumn: String = AudioColumns._ID): Array<String> {
             var baseProjection = BASE_PROJECTION

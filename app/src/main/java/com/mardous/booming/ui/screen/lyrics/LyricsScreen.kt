@@ -7,11 +7,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -134,7 +137,7 @@ fun LyricsScreen(
 
     val miniPlayerMargin by libraryViewModel.getMiniPlayerMargin().observeAsState(LibraryMargin(0))
 
-    val lyricsViewSettings by lyricsViewModel.fullLyricsViewSettings.collectAsState()
+    val settings by lyricsViewModel.fullLyricsViewSettings.collectAsState()
     val uiState by lyricsViewModel.lyricsUiState.collectAsState()
 
     val song by playerViewModel.currentSongFlow.collectAsStateWithLifecycle()
@@ -145,7 +148,7 @@ fun LyricsScreen(
         if (isPowerSaveMode)
             return@LaunchedEffect
 
-        if (lyricsViewSettings.backgroundEffect == BackgroundEffect.Gradient) {
+        if (settings.backgroundEffect == BackgroundEffect.Gradient) {
             withContext(Dispatchers.Default) {
                 val result = SingletonImageLoader.get(context).execute(
                     ImageRequest.Builder(context)
@@ -185,7 +188,7 @@ fun LyricsScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             AnimatedContent(
-                targetState = Pair(lyricsViewSettings.backgroundEffect, gradientColors),
+                targetState = Pair(settings.backgroundEffect, gradientColors),
                 transitionSpec = {
                     fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000)))
                 }
@@ -239,8 +242,8 @@ fun LyricsScreen(
             LyricsSurface(
                 playerViewModel = playerViewModel,
                 uiState = uiState,
-                settings = lyricsViewSettings,
-                PaddingValues(vertical = 96.dp, horizontal = 16.dp),
+                settings = settings,
+                PaddingValues(top = 160.dp, bottom = 96.dp, start = 16.dp, end = 16.dp),
                 fadingEdges = FadingEdges(top = 56.dp, bottom = 32.dp),
                 textAlign = TextAlign.Start,
                 isPlaying = isPlaying,
@@ -248,7 +251,7 @@ fun LyricsScreen(
                 hasBackgroundEffects = hasBackgroundEffects,
                 onSeekToLine = {
                     playerViewModel.seekTo(it.start)
-                    if (lyricsViewSettings.resumeOnSeek) {
+                    if (settings.resumeOnSeek) {
                         playerViewModel.play()
                     }
                 },
@@ -272,7 +275,27 @@ fun CoverLyricsScreen(
 
     val isPlaying by playerViewModel.isPlayingFlow.collectAsStateWithLifecycle()
 
-    val lyricsViewSettings by lyricsViewModel.playerLyricsViewSettings.collectAsState()
+    val rawSettings by lyricsViewModel.playerLyricsViewSettings.collectAsState()
+    // 强制歌词居中显示（覆盖用户偏好，确保第一句歌词在视口中央）
+    val settings = remember(rawSettings) {
+        LyricsViewSettings(
+            mode = rawSettings.mode,
+            isCenterCurrentLine = true,
+            isCenterHorizontally = rawSettings.isCenterHorizontally,
+            enableSyllableLyrics = rawSettings.enableSyllableLyrics,
+            enableKaraokeStyle = rawSettings.enableKaraokeStyle,
+            progressiveColoring = rawSettings.progressiveColoring,
+            backgroundEffect = rawSettings.backgroundEffect,
+            blurEffect = rawSettings.blurEffect,
+            shadowEffect = rawSettings.shadowEffect,
+            showTranslation = rawSettings.showTranslation,
+            showTransliteration = rawSettings.showTransliteration,
+            resumeOnSeek = rawSettings.resumeOnSeek,
+            syncedStyle = rawSettings.syncedStyle,
+            unsyncedStyle = rawSettings.unsyncedStyle,
+            lineSpacing = rawSettings.lineSpacing
+        )
+    }
     val uiState by lyricsViewModel.lyricsUiState.collectAsState()
 
     val playerColorScheme by playerViewModel.colorSchemeFlow.collectAsState(
@@ -284,8 +307,8 @@ fun CoverLyricsScreen(
             LyricsSurface(
                 uiState = uiState,
                 playerViewModel = playerViewModel,
-                settings = lyricsViewSettings,
-                contentPadding = PaddingValues(vertical = 72.dp, horizontal = 12.dp),
+                settings = settings,
+                contentPadding = PaddingValues(top = 128.dp, bottom = 72.dp, start = 12.dp, end = 12.dp),
                 fadingEdges = FadingEdges(top = 72.dp, bottom = 64.dp),
                 textAlign = TextAlign.Center,
                 isPlaying = isPlaying,
@@ -293,7 +316,7 @@ fun CoverLyricsScreen(
                 hasBackgroundEffects = false,
                 onSeekToLine = {
                     playerViewModel.seekTo(it.start)
-                    if (lyricsViewSettings.resumeOnSeek) {
+                    if (settings.resumeOnSeek) {
                         playerViewModel.play()
                     }
                 },
@@ -312,8 +335,8 @@ fun CoverLyricsScreen(
                 onClick = onExpandClick
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_open_in_full_24dp),
-                    contentDescription = stringResource(R.string.action_lyrics_editor)
+                    painter = painterResource(R.drawable.ic_lyrics_24dp),
+                    contentDescription = stringResource(R.string.action_show_lyrics)
                 )
             }
         }
@@ -382,50 +405,59 @@ private fun LyricsSurface(
                     scrollState.scrollTo(0)
                 }
 
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(contentPadding)
                         .nestedScroll(rememberNestedScrollInteropConnection())
                         .fadingEdges(fadingEdges)
-                        .verticalScroll(scrollState)
-                        .padding(contentPadding)
                 ) {
-                    Text(
-                        text = uiState.lyrics,
-                        color = contentColor,
-                        textAlign = textAlign,
-                        style = settings.unsyncedStyle,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    val centerTop = (maxHeight / 2 - 32.dp).coerceAtLeast(0.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .padding(top = centerTop)
+                    ) {
+                        Text(
+                            text = uiState.lyrics,
+                            color = contentColor,
+                            textAlign = textAlign,
+                            style = settings.unsyncedStyle,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
             is LyricsUiState.Synced -> {
-                val lyricsViewState = rememberLyricsViewState(uiState.syncedLyrics)
+                key(uiState.id) {
+                    val lyricsViewState = rememberLyricsViewState(uiState.syncedLyrics)
 
-                val playerPosition by playerViewModel.progressFlow.collectAsStateWithLifecycle()
-                val playbackSpeed by playerViewModel.playbackSpeed.collectAsStateWithLifecycle()
+                    val playerPosition by playerViewModel.progressFlow.collectAsStateWithLifecycle()
+                    val playbackSpeed by playerViewModel.playbackSpeed.collectAsStateWithLifecycle()
 
-                val smoothProgress by rememberSmoothPlaybackPosition(
-                    playerPosition = playerPosition,
-                    playbackSpeed = playbackSpeed,
-                    isPlaying = isPlaying
-                )
+                    val smoothProgress by rememberSmoothPlaybackPosition(
+                        playerPosition = playerPosition,
+                        playbackSpeed = playbackSpeed,
+                        isPlaying = isPlaying
+                    )
 
-                LaunchedEffect(playerPosition) {
-                    lyricsViewState.updatePosition(smoothProgress)
+                    LaunchedEffect(playerPosition) {
+                        lyricsViewState.updatePosition(smoothProgress)
+                    }
+
+                    LyricsView(
+                        state = lyricsViewState,
+                        settings = settings,
+                        contentPadding = contentPadding,
+                        fadingEdges = fadingEdges,
+                        contentColor = contentColor,
+                        isPowerSaveMode = isPowerSaveMode,
+                        hasBackgroundEffects = hasBackgroundEffects,
+                        onLineClick = { onSeekToLine(it) }
+                    )
                 }
-
-                LyricsView(
-                    state = lyricsViewState,
-                    settings = settings,
-                    contentPadding = contentPadding,
-                    fadingEdges = fadingEdges,
-                    contentColor = contentColor,
-                    isPowerSaveMode = isPowerSaveMode,
-                    hasBackgroundEffects = hasBackgroundEffects,
-                    onLineClick = { onSeekToLine(it) }
-                )
             }
         }
     }

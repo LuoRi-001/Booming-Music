@@ -187,6 +187,11 @@
     </fragment>
 
     <fragment
+        android:id="@+id/nav_listening_stats"
+        android:name="com.mardous.booming.ui.screen.library.stats.ListeningStatsFragment"
+        android:label="ListeningStatsFragment"/>
+
+    <fragment
         android:id="@+id/nav_settings"
         android:name="com.mardous.booming.ui.screen.settings.SettingsFragment"
         android:label="SettingsFragment"/>

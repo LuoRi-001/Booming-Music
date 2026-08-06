@@ -31,6 +31,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.liveData
 import androidx.lifecycle.viewModelScope
 import com.mardous.booming.coil.CustomPlaylistImageManager
@@ -41,6 +42,8 @@ import com.mardous.booming.data.SongProvider
 import com.mardous.booming.data.local.repository.Repository
 import com.mardous.booming.data.local.room.InclExclDao
 import com.mardous.booming.data.local.room.InclExclEntity
+import com.mardous.booming.data.local.room.PlaybackTimeEntry
+import com.mardous.booming.data.local.room.PlayCountEntity
 import com.mardous.booming.data.local.room.PlaylistEntity
 import com.mardous.booming.data.local.room.PlaylistWithSongs
 import com.mardous.booming.data.local.room.SongEntity
@@ -65,10 +68,14 @@ import com.mardous.booming.util.StorageUtil
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.coroutines.resume
 
 class LibraryViewModel(
@@ -332,6 +339,44 @@ class LibraryViewModel(
 
     fun playCountSongsFlow() = repository.playCountSongsFlow()
 
+    fun listeningStatsRanking(range: StatsTimeRange): LiveData<List<PlayCountEntity>> =
+        repository.rankingSince(cutoffForRange(range)).asLiveData()
+
+    fun getTimelineBars(range: StatsTimeRange): LiveData<List<TimelineBar>> = liveData(IO) {
+        val now = LocalDate.now()
+        val zoneId = ZoneId.systemDefault()
+        val entries = repository.getPlaybackDataSince(cutoffForRange(range))
+        val bars = computeTimelineBars(entries, range, now, zoneId)
+        emit(bars)
+    }
+
+    fun totalDurationForToday(): LiveData<Long> =
+        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.TODAY)).asLiveData()
+
+    fun totalDurationForThisWeek(): LiveData<Long> =
+        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.WEEK)).asLiveData()
+
+    fun totalDurationForThisMonth(): LiveData<Long> =
+        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.MONTH)).asLiveData()
+
+    fun totalDurationForThisYear(): LiveData<Long> =
+        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.YEAR)).asLiveData()
+
+    fun totalDurationAllTime(): LiveData<Long> =
+        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.ALL)).asLiveData()
+
+    private fun cutoffForRange(range: StatsTimeRange): Long {
+        val now = LocalDate.now()
+        val zoneId = ZoneId.systemDefault()
+        return when (range) {
+            StatsTimeRange.TODAY -> now.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            StatsTimeRange.WEEK -> now.with(DayOfWeek.MONDAY).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            StatsTimeRange.MONTH -> now.withDayOfMonth(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            StatsTimeRange.YEAR -> now.withDayOfYear(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            StatsTimeRange.ALL -> 0L
+        }
+    }
+
     fun historySongsFlow() = repository.historySongsFlow()
 
     fun notRecentlyPlayedSongs(): LiveData<List<Song>> = liveData(IO) {
@@ -591,6 +636,86 @@ class LibraryViewModel(
             id = intent.getStringExtra(stringKey)?.toLongOrNull() ?: -1
         }
         return id
+    }
+}
+
+data class TimelineBar(val label: String, val durationMs: Long)
+
+enum class StatsTimeRange {
+    TODAY, WEEK, MONTH, YEAR, ALL
+}
+
+private fun computeTimelineBars(
+    entries: List<PlaybackTimeEntry>,
+    range: StatsTimeRange,
+    now: LocalDate,
+    zoneId: ZoneId
+): List<TimelineBar> {
+    if (entries.isEmpty()) return emptyList()
+
+    return when (range) {
+        StatsTimeRange.TODAY -> {
+            val buckets = (0 until 6).map { i ->
+                val hourStart = i * 4
+                val hourEnd = hourStart + 4
+                TimelineBar(
+                    label = "${hourStart}h",
+                    durationMs = 0L
+                )
+            }.toMutableList()
+            entries.forEach { entry ->
+                val hour = java.time.Instant.ofEpochMilli(entry.timePlayed)
+                    .atZone(zoneId).hour
+                val bucketIndex = (hour / 4).coerceIn(0, 5)
+                buckets[bucketIndex] = buckets[bucketIndex].copy(
+                    durationMs = buckets[bucketIndex].durationMs + entry.totalPlayDurationMs
+                )
+            }
+            buckets
+        }
+        StatsTimeRange.WEEK -> {
+            val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+            val dayTotals = LongArray(7)
+            val cut = now.with(DayOfWeek.MONDAY).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            entries.filter { it.timePlayed >= cut }.forEach { entry ->
+                val dayOfWeek = java.time.Instant.ofEpochMilli(entry.timePlayed)
+                    .atZone(zoneId).dayOfWeek.value - 1 // Mon=0
+                dayTotals[dayOfWeek] += entry.totalPlayDurationMs
+            }
+            dayNames.mapIndexed { i, name -> TimelineBar(name, dayTotals[i]) }
+        }
+        StatsTimeRange.MONTH -> {
+            val daysInMonth = now.lengthOfMonth()
+            val buckets = 4
+            val bucketTotals = LongArray(buckets)
+            val cut = now.withDayOfMonth(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val daysPerBucket = kotlin.math.ceil(daysInMonth.toDouble() / buckets).toInt()
+            entries.filter { it.timePlayed >= cut }.forEach { entry ->
+                val dayOfMonth = java.time.Instant.ofEpochMilli(entry.timePlayed)
+                    .atZone(zoneId).dayOfMonth
+                val bucketIndex = ((dayOfMonth - 1) / daysPerBucket).coerceIn(0, buckets - 1)
+                bucketTotals[bucketIndex] += entry.totalPlayDurationMs
+            }
+            bucketTotals.mapIndexed { i, total -> TimelineBar("W${i + 1}", total) }
+        }
+        StatsTimeRange.YEAR -> {
+            val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            val monthTotals = LongArray(12)
+            val cut = now.withDayOfYear(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            entries.filter { it.timePlayed >= cut }.forEach { entry ->
+                val month = java.time.Instant.ofEpochMilli(entry.timePlayed)
+                    .atZone(zoneId).monthValue - 1
+                monthTotals[month] += entry.totalPlayDurationMs
+            }
+            monthNames.mapIndexed { i, name -> TimelineBar(name, monthTotals[i]) }
+        }
+        StatsTimeRange.ALL -> {
+            val yearTotals = entries.groupBy {
+                java.time.Instant.ofEpochMilli(it.timePlayed).atZone(zoneId).year
+            }.mapValues { (_, group) -> group.sumOf { it.totalPlayDurationMs } }
+            yearTotals.entries.map { TimelineBar(it.key.toString(), it.value) }
+                .sortedBy { it.label }
+        }
     }
 }
 

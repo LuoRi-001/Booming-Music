@@ -28,14 +28,15 @@ data class Artist(
     val id: Long,
     val albums: List<Album>,
     val filterSingles: Boolean,
-    val isAlbumArtist: Boolean = false
+    val isAlbumArtist: Boolean = false,
+    val displayName: String? = null
 ) : SongProvider {
 
     constructor(artistName: String, albums: List<Album>, filterSingles: Boolean, isAlbumArtist: Boolean = true) :
             this(albums.firstOrNull()?.artistId ?: -1, albums, filterSingles, true)
 
     val name: String
-        get() = if (isAlbumArtist) getAlbumArtistName() ?: "-" else getArtistName()
+        get() = displayName ?: if (isAlbumArtist) getAlbumArtistName() ?: "-" else getArtistName()
 
     val albumCount: Int
         get() = if (filterSingles) albums.count { !it.isSingle } else albums.size
@@ -64,7 +65,8 @@ data class Artist(
     }
 
     private fun getAlbumArtistName(): String? {
-        return safeGetFirstAlbum().safeGetFirstSong().albumArtistName
+        val song = safeGetFirstAlbum().safeGetFirstSong()
+        return song.albumArtistName ?: song.artistName
     }
 
     override fun equals(other: Any?): Boolean {
@@ -72,13 +74,14 @@ data class Artist(
         if (other == null || javaClass != other.javaClass) return false
         val artist = other as Artist
         return id == artist.id &&
+                displayName == artist.displayName &&
                 songs == artist.songs &&
                 isAlbumArtist == artist.isAlbumArtist &&
                 filterSingles == artist.filterSingles
     }
 
     override fun hashCode(): Int {
-        return Objects.hash(id, songs, isAlbumArtist, filterSingles)
+        return Objects.hash(id, displayName, songs, isAlbumArtist, filterSingles)
     }
 
     override fun toString(): String {

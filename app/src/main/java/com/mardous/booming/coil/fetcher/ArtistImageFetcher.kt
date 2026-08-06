@@ -42,6 +42,7 @@ class ArtistImageFetcher(
         get() = options.context.contentResolver
 
     override suspend fun fetch(): FetchResult? {
+        // 1. Custom image (fastest)
         if (customImageManager.hasCustomImage(image)) {
             val imageFile = customImageManager.getCustomImageFile(image)
             if (imageFile?.isFile == true) {
@@ -53,6 +54,27 @@ class ArtistImageFetcher(
             }
         }
 
+        // 2. Local MediaStore cover (fast — avoid network if we have local art)
+        if (image.id > 0 || image.id == Artist.VARIOUS_ARTISTS_ID) {
+            try {
+                val stream = contentResolver.openInputStream(image.coverUri)
+                if (stream != null) {
+                    return SourceFetchResult(
+                        source = ImageSource(
+                            source = stream.source().buffer(),
+                            fileSystem = options.fileSystem,
+                            metadata = null
+                        ),
+                        mimeType = contentResolver.getType(image.coverUri),
+                        dataSource = DataSource.DISK
+                    )
+                }
+            } catch (_: Exception) {
+                // Local cover unavailable, fall through to network
+            }
+        }
+
+        // 3. Network (Deezer) — slowest, only if no local image
         if (!image.isNameUnknown && NetworkFeature.Images.Artists.isAvailable) {
             var pageIndex = 0
             var revisedResults = 0
@@ -76,19 +98,7 @@ class ArtistImageFetcher(
             }
         }
 
-        check(image.id > 0 || image.id == Artist.VARIOUS_ARTISTS_ID) { "invalid artist ID (${image.id})" }
-        val stream = checkNotNull(contentResolver.openInputStream(image.coverUri)) {
-            "couldn't open stream from ${image.coverUri}"
-        }
-        return SourceFetchResult(
-            source = ImageSource(
-                source = stream.source().buffer(),
-                fileSystem = options.fileSystem,
-                metadata = null
-            ),
-            mimeType = contentResolver.getType(image.coverUri),
-            dataSource = DataSource.DISK
-        )
+        return null
     }
 
     class Factory(

@@ -25,6 +25,9 @@ import com.mardous.booming.data.local.room.HistoryDao
 import com.mardous.booming.data.local.room.HistoryEntity
 import com.mardous.booming.data.local.room.PlayCountDao
 import com.mardous.booming.data.local.room.PlayCountEntity
+import com.mardous.booming.data.local.room.PlaybackEventDao
+import com.mardous.booming.data.local.room.PlaybackEventEntity
+import com.mardous.booming.data.local.room.PlaybackTimeEntry
 import com.mardous.booming.data.mapper.toHistoryEntity
 import com.mardous.booming.data.mapper.toSong
 import com.mardous.booming.data.model.Album
@@ -52,7 +55,7 @@ interface SmartRepository {
     suspend fun findSongInPlayCount(songId: Long): PlayCountEntity?
     suspend fun deleteSongInPlayCount(songId: Long)
     suspend fun deleteSongsInPlayCount(songIds: List<Long>)
-    suspend fun insetOrIncrementPlayCount(song: Song, timePlayed: Long)
+    suspend fun insetOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long = 0L)
     suspend fun insetOrIncrementSkipCount(song: Song)
     suspend fun clearPlayCount()
     suspend fun historySongs(): List<Song>
@@ -61,6 +64,11 @@ interface SmartRepository {
     suspend fun deleteSongInHistory(songId: Long)
     suspend fun deleteSongsInHistory(songIds: List<Long>)
     suspend fun clearSongHistory()
+    suspend fun totalDurationSince(cutoff: Long): Long
+    fun totalDurationSinceFlow(cutoff: Long = 0): Flow<Long>
+    suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry>
+    fun rankingSince(cutoff: Long): Flow<List<PlayCountEntity>>
+    suspend fun insertPlaybackEvent(song: Song, timePlayed: Long, durationMs: Long)
 }
 
 class RealSmartRepository(
@@ -70,6 +78,7 @@ class RealSmartRepository(
     private val artistRepository: RealArtistRepository,
     private val historyDao: HistoryDao,
     private val playCountDao: PlayCountDao,
+    private val playbackEventDao: PlaybackEventDao,
 ) : SmartRepository {
 
     override suspend fun topAlbums(): List<Album> =
@@ -78,8 +87,12 @@ class RealSmartRepository(
     override suspend fun topAlbumArtists(): List<Artist> =
         artistRepository.splitIntoAlbumArtists(topAlbums())
 
+    // "Recent" here means recently *played* (most recent play time first),
+    // not recently added to the library. HistoryEntity is upserted on every
+    // track change with the current timestamp, so it already holds the
+    // last-played order.
     override suspend fun recentSongs(): List<Song> =
-        songRepository.songs(makeLastAddedCursor(null, ContentType.RecentSongs))
+        historyDao.historySongs().map { it.toSong() }
 
     override suspend fun recentSongs(query: String, contentType: ContentType): List<Song> =
         songRepository.songs(makeLastAddedCursor(query, contentType))
@@ -110,8 +123,10 @@ class RealSmartRepository(
         }
     }
 
-    override suspend fun playCountSongs(): List<Song> = playCountDao.playCountSongs()
-        .fromPlayCountToSongs()
+    override suspend fun playCountSongs(): List<Song> {
+        playCountDao.cleanInvalidEntries()
+        return playCountDao.playCountSongs().fromPlayCountToSongs()
+    }
 
     override fun playCountSongsFlow(): Flow<List<Song>> =
         playCountDao.playCountSongsFlow().map { playCountEntities ->
@@ -140,8 +155,8 @@ class RealSmartRepository(
         }
     }
 
-    override suspend fun insetOrIncrementPlayCount(song: Song, timePlayed: Long) =
-        playCountDao.insertOrIncrementPlayCount(song, timePlayed)
+    override suspend fun insetOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long) =
+        playCountDao.insertOrIncrementPlayCount(song, timePlayed, actualDurationMs)
 
     override suspend fun insetOrIncrementSkipCount(song: Song) =
         playCountDao.insertOrIncrementSkipCount(song)
@@ -176,6 +191,47 @@ class RealSmartRepository(
         historyDao.clearHistory()
     }
 
+    override suspend fun totalDurationSince(cutoff: Long): Long =
+        historyDao.totalDurationSince(cutoff)
+
+    // Both stats sources are backed by the event table so durations and
+    // timeline bars reflect plays within the selected range, not lifetime
+    // counters.
+    override fun totalDurationSinceFlow(cutoff: Long): Flow<Long> =
+        playbackEventDao.totalDurationSince(cutoff)
+
+    override suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry> =
+        playbackEventDao.playbackEventsSince(cutoff)
+
+    /**
+     * Ranking of songs by plays within [cutoff]..now, backed by play events.
+     * [PlayCountEntity] rows are reused as song snapshots, but the play
+     * count and duration values are replaced with the exact in-range
+     * aggregates.
+     */
+    override fun rankingSince(cutoff: Long): Flow<List<PlayCountEntity>> =
+        playbackEventDao.rankingSince(cutoff).map { rows ->
+            if (rows.isEmpty()) {
+                emptyList()
+            } else {
+                val entities = playCountDao.findSongsExistInPlayCount(rows.map { it.id })
+                rows.mapNotNull { row ->
+                    entities.find { it.id == row.id }?.copy(
+                        playCount = row.plays,
+                        totalPlayDurationMs = row.durationMs,
+                        timePlayed = row.lastPlayed
+                    )
+                }
+            }
+        }
+
+    override suspend fun insertPlaybackEvent(song: Song, timePlayed: Long, durationMs: Long) {
+        if (song.id < 0 || song.data.isEmpty()) return
+        playbackEventDao.insert(
+            PlaybackEventEntity(songId = song.id, timePlayed = timePlayed, durationMs = durationMs)
+        )
+    }
+
     private fun makeLastAddedCursor(query: String?, contentType: ContentType): Cursor? {
         val cutoff = Preferences.getLastAddedCutoff(context).interval
         val queryDispatcher = MediaQueryDispatcher()
@@ -196,7 +252,14 @@ class RealSmartRepository(
     }
 
     private suspend fun List<PlayCountEntity>.fromPlayCountToSongs(): List<Song> = withContext(IO) {
-        val (deletedTracks, validTracks) = partition { it.id == -1L || !File(it.data).exists() }
+        // Purge any leftover invalid entries (id < 0, empty data, or file deleted).
+        // cleanInvalidEntries() is also called by playCountSongs() before loading the
+        // list; this call handles the playCountSongsFlow() reactive path.
+        playCountDao.cleanInvalidEntries()
+
+        val (deletedTracks, validTracks) = partition {
+            it.id == -1L || it.data.isEmpty() || !File(it.data).exists()
+        }
         if (deletedTracks.isNotEmpty()) {
             deletedTracks.map { it.id }
                 .chunked(MAX_ITEMS_PER_CHUNK)

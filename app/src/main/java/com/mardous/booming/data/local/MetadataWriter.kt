@@ -141,23 +141,28 @@ class MetadataWriter : KoinComponent {
     private fun writePicture(picture: Picture?, fd: ParcelFileDescriptor): Result {
         if (picture == null) {
             if (pictureDeleted) {
-                if (TagLib.savePictures(fd.dup().detachFd(), arrayOf())) {
-                    return Result.Deleted
+                synchronized(TagLibMutex.lock) {
+                    if (TagLib.savePictures(fd.dup().detachFd(), arrayOf())) {
+                        return Result.Deleted
+                    }
                 }
             } else {
                 return Result.None
             }
         } else {
-            if (TagLib.savePictures(fd.dup().detachFd(), arrayOf(picture))) {
-                return Result.Wrote
+            synchronized(TagLibMutex.lock) {
+                if (TagLib.savePictures(fd.dup().detachFd(), arrayOf(picture))) {
+                    return Result.Wrote
+                }
             }
         }
         return Result.Failed
     }
 
     private fun writePropertyMap(fd: ParcelFileDescriptor): Result {
-        val currentProperties = TagLib.getMetadata(fd.dup().detachFd(), false)
-                ?.propertyMap ?: hashMapOf()
+        val currentProperties = synchronized(TagLibMutex.lock) {
+            TagLib.getMetadata(fd.dup().detachFd(), false)
+        }?.propertyMap ?: hashMapOf()
 
         for ((key, newValueRaw) in properties) {
             val newValue = if (newValueRaw.isNullOrBlank()) {
@@ -175,7 +180,10 @@ class MetadataWriter : KoinComponent {
             .filterValues { it.isNotEmpty() }
             .mapValuesTo(hashMapOf()) { it.value }
 
-        return if (TagLib.savePropertyMap(fd.dup().detachFd(), newProperties)) {
+        return if (synchronized(TagLibMutex.lock) {
+                TagLib.savePropertyMap(fd.dup().detachFd(), newProperties)
+            }
+        ) {
             Result.Wrote
         } else {
             Result.Failed

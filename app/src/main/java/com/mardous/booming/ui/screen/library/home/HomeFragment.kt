@@ -1,20 +1,3 @@
-/*
- * Copyright (c) 2024 Christians Martínez Alvarado
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 package com.mardous.booming.ui.screen.library.home
 
 import android.os.Bundle
@@ -22,18 +5,22 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.mardous.booming.databinding.FragmentHomeBinding
 import com.mardous.booming.R
+import com.mardous.booming.core.model.shuffle.OpenShuffleMode
 import com.mardous.booming.data.model.Album
 import com.mardous.booming.data.model.Artist
 import com.mardous.booming.data.model.ContentType
 import com.mardous.booming.data.model.Song
 import com.mardous.booming.data.model.Suggestion
-import com.mardous.booming.databinding.FragmentHomeBinding
 import com.mardous.booming.extensions.dp
 import com.mardous.booming.extensions.isNullOrEmpty
 import com.mardous.booming.extensions.navigation.albumDetailArgs
@@ -54,6 +41,7 @@ import com.mardous.booming.ui.IHomeCallback
 import com.mardous.booming.ui.IScrollHelper
 import com.mardous.booming.ui.ISongCallback
 import com.mardous.booming.ui.adapters.HomeAdapter
+import com.mardous.booming.ui.adapters.StatsCardFooterAdapter
 import com.mardous.booming.ui.adapters.album.AlbumAdapter
 import com.mardous.booming.ui.adapters.artist.ArtistAdapter
 import com.mardous.booming.ui.adapters.song.SongAdapter
@@ -65,12 +53,24 @@ import com.mardous.booming.ui.component.menu.onArtistsMenu
 import com.mardous.booming.ui.component.menu.onSongMenu
 import com.mardous.booming.ui.component.menu.onSongsMenu
 import com.mardous.booming.ui.screen.library.ReloadType
+import com.mardous.booming.ui.theme.BoomingMusicTheme
 
 /**
  * @author Christians M. A. (mardous)
  */
+// Warm color palette for shuffle button background (ARGB)
+private val WARM_COLORS = longArrayOf(
+    0xFFFF6B6B, // coral
+    0xFFFF8A65, // salmon
+    0xFFFF9800, // orange
+    0xFFFF5722, // deep orange
+    0xFFFFAB40, // amber-orange
+    0xFFFF7043, // warm burnt orange
+    0xFFE8614C, // terracotta
+    0xFFFF8C42, // tangerine
+)
+
 class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
-    View.OnClickListener,
     ISongCallback,
     IAlbumCallback,
     IArtistCallback,
@@ -81,9 +81,20 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     private val binding get() = _binding!!
 
     private var homeAdapter: HomeAdapter? = null
+    private var statsFooterAdapter: StatsCardFooterAdapter? = null
 
     private val currentContent: SuggestedResult
         get() = libraryViewModel.getSuggestions().value ?: SuggestedResult.Idle
+
+    // 你的推荐 state
+    private var songState = mutableStateOf<List<Song>>(emptyList())
+    private var refreshKey = mutableStateOf(0L)
+    private var allCachedSongs: List<Song> = emptyList()
+    private var isSongsLoaded = false
+    private var hasSuggestionsLoaded = false
+
+    // Warm accent color for shuffle button — picked once per fragment lifetime
+    private val warmShuffleColor: Long = WARM_COLORS.random()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -94,15 +105,26 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         topLevelTransition(view)
 
         setupTitle()
-        setupListeners()
+        setupRecommendations()
         checkForMargins()
 
         homeAdapter = HomeAdapter(arrayListOf(), this).also {
             it.registerAdapterDataObserver(adapterDataObserver)
         }
+        val statsFooterAdapter = StatsCardFooterAdapter(
+            libraryViewModel = libraryViewModel,
+            onClick = {
+                findNavController().navigate(R.id.nav_listening_stats)
+            }
+        ).also { this.statsFooterAdapter = it }
+        val concatAdapter = ConcatAdapter(
+            ConcatAdapter.Config.Builder().setIsolateViewTypes(true).build(),
+            homeAdapter,
+            statsFooterAdapter
+        )
         binding.recyclerView.apply {
             layoutManager = LinearLayoutManager(activity)
-            adapter = homeAdapter
+            adapter = concatAdapter
             addPaddingRelative(bottom = 8.dp(resources))
             destroyOnDetach()
         }
@@ -119,6 +141,10 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                     binding.progressIndicator.hide()
                 }
                 homeAdapter?.dataSet = result.data
+                hasSuggestionsLoaded = true
+                if (result.data.isNotEmpty()) {
+                    this@HomeFragment.statsFooterAdapter?.isVisible = true
+                }
             }
         }.also { liveData ->
             if (liveData.value == SuggestedResult.Idle) {
@@ -144,46 +170,76 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         binding.appBarLayout.title = appName
     }
 
-    private fun setupListeners() {
-        binding.myTopTracks.setOnClickListener(this)
-        binding.lastAdded.setOnClickListener(this)
-        binding.history.setOnClickListener(this)
-        binding.shuffleButton.setOnClickListener(this)
+    private fun setupRecommendations() {
+        binding.recommendationsSection.apply {
+            visibility = View.GONE
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                BoomingMusicTheme {
+                    YourRecommendationsSection(
+                        songs = songState.value,
+                        refreshKey = refreshKey.value,
+                        shuffleColor = warmShuffleColor,
+                        onSongClick = { song -> onRecommendationSongClick(song) },
+                        onShuffleClick = { onRecommendationShuffleClick() }
+                    )
+                }
+            }
+        }
+        loadRecommendations()
+    }
+
+    private fun loadRecommendations() {
+        if (!isSongsLoaded) {
+            libraryViewModel.allSongs().observe(viewLifecycleOwner) { allSongs ->
+                allCachedSongs = allSongs
+                isSongsLoaded = true
+                pickRandomSongs()
+            }
+        } else {
+            pickRandomSongs()
+        }
+    }
+
+    private fun pickRandomSongs() {
+        if (allCachedSongs.isNotEmpty()) {
+            songState.value = allCachedSongs.shuffled().take(5)
+            refreshKey.value = System.nanoTime()
+            binding.recommendationsSection.visibility = View.VISIBLE
+        }
+    }
+
+    private fun onRecommendationSongClick(song: Song) {
+        val others = allCachedSongs
+            .filter { it.id != song.id }
+            .shuffled()
+            .take(29)
+        val playlist = listOf(song) + others
+        if (playlist.isNotEmpty()) {
+            playerViewModel.openQueue(playlist, position = 0, shuffleMode = OpenShuffleMode.On)
+        }
+    }
+
+    private fun onRecommendationShuffleClick() {
+        val picks = allCachedSongs.shuffled().take(30)
+        if (picks.isNotEmpty()) {
+            playerViewModel.openAndShuffleQueue(picks)
+        }
     }
 
     private fun checkIsEmpty() {
-        binding.empty.isVisible = !currentContent.isLoading && homeAdapter.isNullOrEmpty
+        binding.empty.isVisible = hasSuggestionsLoaded && !currentContent.isLoading && homeAdapter.isNullOrEmpty
     }
 
     private fun checkForMargins() {
         checkForMargins(binding.recyclerView)
     }
 
-    override fun onClick(view: View) {
-        when (view) {
-            binding.myTopTracks -> {
-                findNavController().navigate(R.id.nav_detail_list, detailArgs(ContentType.TopTracks))
-            }
-
-            binding.lastAdded -> {
-                findNavController().navigate(R.id.nav_detail_list, detailArgs(ContentType.RecentSongs))
-            }
-
-            binding.history -> {
-                findNavController().navigate(R.id.nav_detail_list, detailArgs(ContentType.History))
-            }
-
-            binding.shuffleButton -> {
-                libraryViewModel.allSongs().observe(viewLifecycleOwner) {
-                    playerViewModel.openAndShuffleQueue(it)
-                }
-            }
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         checkForMargins()
+        // Refresh recommendations on return
+        pickRandomSongs()
     }
 
     override fun onPause() {
@@ -211,7 +267,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     @Suppress("UNCHECKED_CAST")
     override fun createSuggestionAdapter(suggestion: Suggestion): RecyclerView.Adapter<*> {
         return when (suggestion.type) {
-            ContentType.TopArtists,
             ContentType.RecentArtists -> ArtistAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Artist>),
@@ -219,7 +274,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 callback = this
             )
 
-            ContentType.TopAlbums,
             ContentType.RecentAlbums -> AlbumAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Album>),
@@ -227,8 +281,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 callback = this
             )
 
-            ContentType.Favorites,
-            ContentType.NotRecentlyPlayed -> SongAdapter(
+            ContentType.History -> SongAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Song>),
                 itemLayoutRes = R.layout.item_image,
@@ -240,17 +293,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     }
 
     override fun suggestionClick(suggestion: Suggestion) {
-        when (suggestion.type) {
-            ContentType.Favorites -> {
-                libraryViewModel.favoritePlaylist().observe(viewLifecycleOwner) {
-                    findNavController().navigate(R.id.nav_playlist_detail, playlistDetailArgs(it.playListId))
-                }
-            }
-
-            else -> {
-                findNavController().navigate(R.id.nav_detail_list, detailArgs(suggestion.type))
-            }
-        }
+        findNavController().navigate(R.id.nav_detail_list, detailArgs(suggestion.type))
     }
 
     override fun songMenuItemClick(

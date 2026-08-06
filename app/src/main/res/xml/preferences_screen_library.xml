@@ -12,6 +12,14 @@
         app:widgetLayout="@layout/preference_switch"
         app:key="trash_music_files"/>
 
+    <EditTextPreference
+        app:iconSpaceReserved="true"
+        app:title="@string/artist_separators_title"
+        app:summary="@string/artist_separators_summary"
+        app:defaultValue="@string/artist_separators_default"
+        app:layout="@layout/list_item_view"
+        app:key="artist_separators"/>
+
     <SwitchPreferenceCompat
         app:iconSpaceReserved="true"
         app:title="@string/ignore_articles_when_sorting_title"

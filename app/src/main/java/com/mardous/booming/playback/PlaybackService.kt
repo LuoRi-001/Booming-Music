@@ -758,9 +758,10 @@ class PlaybackService :
 
             val previousSong = songPlayCountHelper.song
             val shouldBumpPlayCount = songPlayCountHelper.shouldBumpPlayCount()
+            val actualListeningTime = songPlayCountHelper.actualListeningTime
             songPlayCountHelper.notifySongChanged(newSong, isPlaying)
 
-            if (newSong != Song.emptySong) {
+            if (newSong.id != -1L) {
                 replayGainProcessor.currentGain = ReplayGainTagExtractor.getReplayGain(newSong)
                 if (preferences.getBoolean(ENABLE_HISTORY, true)) {
                     repository.upsertSongInHistory(newSong)
@@ -772,13 +773,21 @@ class PlaybackService :
                     launch { repository.updateNowPlaying(ScrobblingService.ListenBrainz, newSong) }
                 }
             }
-            if (previousSong != Song.emptySong) {
+            if (previousSong.id != -1L) {
                 val timestampMillis = System.currentTimeMillis()
                 val timestampSeconds = (timestampMillis / 1000)
                 if (shouldBumpPlayCount) {
                     repository.insertOrIncrementPlayCount(
                         song = previousSong,
-                        timePlayed = timestampMillis
+                        timePlayed = timestampMillis,
+                        actualDurationMs = actualListeningTime
+                    )
+                    // Event-level record so listening stats can be filtered
+                    // by day/week/month/year instead of lifetime counters.
+                    repository.insertPlaybackEvent(
+                        song = previousSong,
+                        timePlayed = timestampMillis,
+                        durationMs = actualListeningTime
                     )
                     if (NetworkFeature.Lastfm.Scrobbling.isAvailable) {
                         launch { repository.scrobble(ScrobblingService.Lastfm, previousSong, timestampSeconds) }

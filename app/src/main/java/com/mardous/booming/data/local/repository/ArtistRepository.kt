@@ -28,6 +28,7 @@ import com.mardous.booming.data.model.Album
 import com.mardous.booming.data.model.Artist
 import com.mardous.booming.extensions.utilities.collapseSpaces
 import com.mardous.booming.util.Preferences
+import java.util.LinkedHashMap
 
 interface ArtistRepository {
     fun artists(): List<Artist>
@@ -122,20 +123,47 @@ class RealArtistRepository(
             return Artist(Artist.VARIOUS_ARTISTS_ID, albums, filterSingles, isAlbumArtist = true)
         }
 
-        val songs = songRepository.songs(
+        val separators = Preferences.artistSeparators
+        // Songs without an ALBUM_ARTIST tag (only ARTIST) are grouped under
+        // their artist name in the album-artist lists, so match both columns.
+        // lower(NULL) never matches, which previously made clicking such an
+        // artist open an empty detail page that immediately navigated back.
+        var songs = songRepository.songs(
             songRepository.makeSongCursor(
-                "lower(${AudioColumns.ALBUM_ARTIST})=?",
-                arrayOf(artistName.lowercase()),
+                "(lower(${AudioColumns.ALBUM_ARTIST})=? OR lower(${AudioColumns.ARTIST})=?)",
+                arrayOf(artistName.lowercase(), artistName.lowercase()),
                 DEFAULT_SORT_ORDER
             )
         )
+        // Split match: the artist name is one segment of a multi-artist tag
+        // (e.g. "A、B" and artist "B"). SQL can't split, so fetch candidate
+        // songs containing any separator and filter in Kotlin.
+        if (songs.isEmpty() && separators.isNotEmpty()) {
+            val separatorConditions = separators.map {
+                "instr(lower(${AudioColumns.ALBUM_ARTIST}), ?) > 0 OR instr(lower(${AudioColumns.ARTIST}), ?) > 0"
+            }
+            val selection = "(${separatorConditions.joinToString(" OR ")})"
+            val selectionValues = separators.flatMap { listOf(it.toString(), it.toString()) }.toTypedArray()
+            val candidates = songRepository.songs(
+                songRepository.makeSongCursor(selection, selectionValues, DEFAULT_SORT_ORDER)
+            )
+            val separatorValues = separators.map { it.toString() }.toTypedArray()
+            songs = candidates.filter { song ->
+                (song.albumArtistName ?: song.artistName)
+                    .split(*separatorValues)
+                    .any { it.trim().equals(artistName, ignoreCase = true) }
+            }
+        }
+        val albums = albumRepository.splitIntoAlbums(
+            songs = songs,
+            sortMode = AlbumSortMode.ArtistAlbums
+        )
         return Artist(
-            artistName = artistName,
-            albums = albumRepository.splitIntoAlbums(
-                songs = songs,
-                sortMode = AlbumSortMode.ArtistAlbums
-            ),
-            filterSingles = filterSingles
+            id = albums.firstOrNull()?.artistId ?: -1,
+            albums = albums,
+            filterSingles = filterSingles,
+            isAlbumArtist = true,
+            displayName = artistName
         )
     }
 
@@ -189,24 +217,49 @@ class RealArtistRepository(
 
     fun splitIntoAlbumArtists(albums: List<Album>): List<Artist> {
         val filterSingles = this.filterSingles
-        return albums.groupBy { it.albumArtistName?.collapseSpaces()?.lowercase() }
-            .filterNot {
-                it.key.isNullOrEmpty()
+        val separators = Preferences.artistSeparators
+        // A song tagged with multiple artists (e.g. "A、B") produces one
+        // group per artist segment, so each artist appears independently in
+        // the list. Albums are shared across the resulting artists.
+        val separatorValues = separators.map { it.toString() }.toTypedArray()
+        val grouped = LinkedHashMap<String, Pair<String, MutableList<Album>>>()
+        for (album in albums) {
+            val rawName = album.albumArtistName ?: album.artistName
+            if (rawName.isNullOrEmpty()) continue
+            val segments = if (separators.isEmpty()) listOf(rawName)
+            else rawName.split(*separatorValues)
+            for (segment in segments) {
+                val key = segment.trim().collapseSpaces().lowercase()
+                if (key.isEmpty()) continue
+                val displayName = segment.trim().collapseSpaces()
+                grouped.getOrPut(key) { displayName to mutableListOf() }.second.add(album)
             }
-            .map { entry ->
-                val currentAlbums = entry.value
-                if (currentAlbums.isNotEmpty()) {
-                    val artistName = currentAlbums[0].albumArtistName?.collapseSpaces()
-                    val sortedAlbums = with(AlbumSortMode.ArtistAlbums) { currentAlbums.sorted() }
-                    if (Artist.VARIOUS_ARTISTS_DISPLAY_NAME.equals(artistName, ignoreCase = true)) {
-                        Artist(Artist.VARIOUS_ARTISTS_ID, sortedAlbums, filterSingles, isAlbumArtist = true)
-                    } else {
-                        Artist(currentAlbums[0].artistId, sortedAlbums, filterSingles, isAlbumArtist = true)
-                    }
-                } else {
-                    Artist.empty
-                }
+        }
+        return grouped.map { (key, entry) ->
+            val (displayName, currentAlbums) = entry
+            val sortedAlbums = with(AlbumSortMode.ArtistAlbums) { currentAlbums.sorted() }
+            if (Artist.VARIOUS_ARTISTS_DISPLAY_NAME.equals(key, ignoreCase = true)) {
+                Artist(Artist.VARIOUS_ARTISTS_ID, sortedAlbums, filterSingles, isAlbumArtist = true)
+            } else if (displayName.equals(
+                    (currentAlbums[0].albumArtistName ?: currentAlbums[0].artistName).collapseSpaces(),
+                    ignoreCase = true
+                )
+            ) {
+                // Single-artist name: keep the album's real artist id
+                Artist(currentAlbums[0].artistId, sortedAlbums, filterSingles, isAlbumArtist = true)
+            } else {
+                // Split artist: the segment shares the album's artist id with
+                // its siblings, so synthesize a unique id per segment to keep
+                // stable-id RecyclerViews (ArtistAdapter.getItemId) distinct.
+                Artist(
+                    id = key.hashCode().toLong() and Long.MAX_VALUE,
+                    albums = sortedAlbums,
+                    filterSingles = filterSingles,
+                    isAlbumArtist = true,
+                    displayName = displayName
+                )
             }
+        }
     }
 
     private fun sortArtists(artists: List<Artist>): List<Artist> {

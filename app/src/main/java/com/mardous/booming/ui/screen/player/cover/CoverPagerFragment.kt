@@ -80,9 +80,11 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
     }
 
     private var isAnimatingLyrics: Boolean = false
-    private val isLyricsViewVisible: Boolean
+    val isLyricsViewVisible: Boolean
         get() = _binding?.coverLyricsFragment?.isVisible == true
-    private var isShowLyricsOnCover: Boolean
+    val isShowLyricsOnCover: Boolean
+        get() = Preferences.showLyricsOnCover
+    private var isShowLyricsOnCoverInternal: Boolean
         get() = Preferences.showLyricsOnCover
         set(value) { Preferences.showLyricsOnCover = value }
 
@@ -224,6 +226,7 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         navController?.removeOnDestinationChangedListener(this)
         navController = null
         Preferences.unregisterOnSharedPreferenceChangeListener(this)
+        isAnimatingLyrics = false // prevent stuck state after view destruction
         super.onDestroyView()
         _binding = null
     }
@@ -263,7 +266,7 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
                         .commitAllowingStateLoss()
                 }
             }
-            isShowLyricsOnCover = true
+            isShowLyricsOnCoverInternal = true
             _binding?.coverLyricsFragment?.isVisible = true
         }
         callbacks?.onLyricsVisibilityChange(animatorSet, true)
@@ -294,7 +297,7 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
                 }
             }
             if (isPermanent) {
-                isShowLyricsOnCover = false
+                isShowLyricsOnCoverInternal = false
             }
             _binding?.coverLyricsFragment?.isVisible = false
             isAnimatingLyrics = false
@@ -302,6 +305,37 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         }
         callbacks?.onLyricsVisibilityChange(animatorSet, false)
         animatorSet.start()
+    }
+
+    /**
+     * Forcefully hides the lyrics view without animation, bypassing all state guards.
+     * Used as a fallback when entering the player page to ensure cover is visible.
+     */
+    fun forceHideLyricsView() {
+        // Cancel any running property animations that could override our state changes
+        _binding?.viewPager?.animate()?.cancel()
+        _binding?.coverLyricsFragment?.animate()?.cancel()
+
+        isAnimatingLyrics = false
+        isShowLyricsOnCoverInternal = false
+        _binding?.let {
+            it.coverLyricsFragment?.isVisible = false
+            it.viewPager?.isInvisible = false
+            it.viewPager?.alpha = 1f
+        }
+        coverLyricsFragment?.let { fragment ->
+            activity?.keepScreenOn(false)
+            if (isVisible) {
+                childFragmentManager.beginTransaction()
+                    .setMaxLifecycle(fragment, Lifecycle.State.STARTED)
+                    .commitAllowingStateLoss()
+            }
+        }
+        // Fire callback with zero-duration animator so the outer fragment
+        // (GradientPlayerFragment) can restore mask alpha
+        val noopAnimator = AnimatorSet()
+        noopAnimator.duration = 0
+        callbacks?.onLyricsVisibilityChange(noopAnimator, false)
     }
 
     private fun requestColor(position: Int) {

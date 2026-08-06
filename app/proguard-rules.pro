@@ -55,6 +55,9 @@
 #-dontwarn
 #-ignorewarnings
 
+# Keep TagLib JNI class to ensure native getFrontCover() works in release builds
+-keep class com.kyant.taglib.** { *; }
+
 #Jaudiotagger
 -dontwarn org.jaudiotagger.**
 -dontwarn org.jcodec.**
@@ -82,6 +85,35 @@
 -keep class com.mardous.booming.data.local.search.** { *; }
 -keep class com.mardous.booming.data.model.search.** { *; }
 -keep class com.mardous.booming.data.model.replaygain.** { *; }
+-keep class com.mardous.booming.data.model.Song { *; }
+
+# Keep Coil 3 custom components to prevent aggressive R8 optimization
+# that can break the Mapper -> Keyer -> Fetcher pipeline in release builds.
+-keep class com.mardous.booming.coil.model.** { *; }
+-keep class com.mardous.booming.coil.store.** { *; }
+-keep class com.mardous.booming.coil.fetcher.** {
+    *;
+}
+-keep class com.mardous.booming.coil.** { *; }
+
+# Keep Coil 3 internal component registry and related classes
+# R8 full mode can strip generic signatures or merge classes that
+# break the Mapper/Keyer/Fetcher type resolution.
+-keep class coil3.ComponentRegistry { *; }
+-keep class coil3.ComponentRegistry$Builder { *; }
+-keep class coil3.RealImageLoader { *; }
+-keep class coil3.RealImageLoaderKt { *; }
+-keep class coil3.util.ServiceLoaderComponentRegistry { *; }
+
+# Keep all classes that extend Coil 3 service loader targets
+-keep class * extends coil3.util.DecoderServiceLoaderTarget { *; }
+-keep class * extends coil3.util.FetcherServiceLoaderTarget { *; }
+
+# Keep Mapper, Keyer, and Fetcher interfaces to preserve generic type resolution
+-keep interface coil3.map.Mapper { *; }
+-keep interface coil3.key.Keyer { *; }
+-keep interface coil3.fetch.Fetcher { *; }
+-keep interface coil3.fetch.Fetcher$Factory { *; }
 
 # Hide an annoying compilation warning
 # http://stackoverflow.com/questions/3308010/what-is-the-ignoring-innerclasses-attribute-warning-output-during-compilation

@@ -24,6 +24,7 @@ import androidx.media3.common.MediaItem
 import com.mardous.booming.core.model.filesystem.FileSystemQuery
 import com.mardous.booming.data.SearchFilter
 import com.mardous.booming.data.local.room.PlayCountEntity
+import com.mardous.booming.data.local.room.PlaybackTimeEntry
 import com.mardous.booming.data.local.room.PlaylistEntity
 import com.mardous.booming.data.local.room.PlaylistWithSongs
 import com.mardous.booming.data.local.room.SongEntity
@@ -110,12 +111,9 @@ interface Repository {
     suspend fun songsByFolder(folderPath: String, includeSubfolders: Boolean): List<Song>
     suspend fun songByFilePath(path: String, ignoreBlacklist: Boolean): Song
     suspend fun homeSuggestions(): List<Suggestion>
-    suspend fun topArtistsSuggestion(): Suggestion
-    suspend fun topAlbumsSuggestion(): Suggestion
     suspend fun recentArtistsSuggestion(): Suggestion
     suspend fun recentAlbumsSuggestion(): Suggestion
-    suspend fun favoritesSuggestion(): Suggestion
-    suspend fun recommendedSongSuggestion(): Suggestion
+    suspend fun historySuggestion(): Suggestion
     suspend fun recentSongs(): List<Song>
     suspend fun topArtists(): List<Artist>
     suspend fun recentArtists(): List<Artist>
@@ -125,7 +123,7 @@ interface Repository {
     fun playCountSongsFlow(): Flow<List<Song>>
     suspend fun findSongsInPlayCount(songs: List<Song>): List<PlayCountEntity>
     suspend fun findSongInPlayCount(songId: Long): PlayCountEntity?
-    suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long)
+    suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long = 0L)
     suspend fun insertOrIncrementSkipCount(song: Song)
     suspend fun clearPlayCount()
     suspend fun upsertSongInHistory(currentSong: Song)
@@ -134,6 +132,11 @@ interface Repository {
     suspend fun historySongs(): List<Song>
     fun historySongsFlow(): Flow<List<Song>>
     suspend fun notRecentlyPlayedSongs(): List<Song>
+    suspend fun totalDurationSince(cutoff: Long): Long
+    fun totalDurationSinceFlow(cutoff: Long = 0): Flow<Long>
+    suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry>
+    fun rankingSince(cutoff: Long): Flow<List<PlayCountEntity>>
+    suspend fun insertPlaybackEvent(song: Song, timePlayed: Long, durationMs: Long)
     suspend fun initializeBlacklist()
     suspend fun search(query: SearchQuery, filter: SearchFilter?): List<Any>
     suspend fun searchSongs(query: String): List<Song>
@@ -336,25 +339,12 @@ class RealRepository(
 
     override suspend fun homeSuggestions(): List<Suggestion> {
         return listOf(
-            topArtistsSuggestion(),
-            topAlbumsSuggestion(),
-            recentArtistsSuggestion(),
+            historySuggestion(),
             recentAlbumsSuggestion(),
-            favoritesSuggestion(),
-            recommendedSongSuggestion()
+            recentArtistsSuggestion()
         ).filter {
             it.items.isNotEmpty()
         }
-    }
-
-    override suspend fun topArtistsSuggestion(): Suggestion {
-        val artists = smartRepository.topAlbumArtists().take(10)
-        return Suggestion(ContentType.TopArtists, artists)
-    }
-
-    override suspend fun topAlbumsSuggestion(): Suggestion {
-        val albums = smartRepository.topAlbums().take(10)
-        return Suggestion(ContentType.TopAlbums, albums)
     }
 
     override suspend fun recentArtistsSuggestion(): Suggestion {
@@ -362,19 +352,14 @@ class RealRepository(
         return Suggestion(ContentType.RecentArtists, artists)
     }
 
+    override suspend fun historySuggestion(): Suggestion {
+        val songs = historySongs().take(10)
+        return Suggestion(ContentType.History, songs)
+    }
+
     override suspend fun recentAlbumsSuggestion(): Suggestion {
         val albums = smartRepository.recentAlbums().take(10)
         return Suggestion(ContentType.RecentAlbums, albums)
-    }
-
-    override suspend fun favoritesSuggestion(): Suggestion {
-        val songs = favoriteSongs()
-        return Suggestion(ContentType.Favorites, songs.take(10))
-    }
-
-    override suspend fun recommendedSongSuggestion(): Suggestion {
-        val songs = smartRepository.notRecentlyPlayedSongs().take(10)
-        return Suggestion(ContentType.NotRecentlyPlayed, songs)
     }
 
     override suspend fun recentSongs(): List<Song> = smartRepository.recentSongs()
@@ -397,8 +382,8 @@ class RealRepository(
     override suspend fun findSongInPlayCount(songId: Long): PlayCountEntity? =
         smartRepository.findSongInPlayCount(songId)
 
-    override suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long) =
-        smartRepository.insetOrIncrementPlayCount(song, timePlayed)
+    override suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long) =
+        smartRepository.insetOrIncrementPlayCount(song, timePlayed, actualDurationMs)
 
     override suspend fun insertOrIncrementSkipCount(song: Song) =
         smartRepository.insetOrIncrementSkipCount(song)
@@ -422,6 +407,21 @@ class RealRepository(
 
     override suspend fun notRecentlyPlayedSongs(): List<Song> =
         smartRepository.notRecentlyPlayedSongs()
+
+    override suspend fun totalDurationSince(cutoff: Long): Long =
+        smartRepository.totalDurationSince(cutoff)
+
+    override fun totalDurationSinceFlow(cutoff: Long): Flow<Long> =
+        smartRepository.totalDurationSinceFlow(cutoff)
+
+    override suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry> =
+        smartRepository.getPlaybackDataSince(cutoff)
+
+    override fun rankingSince(cutoff: Long): Flow<List<PlayCountEntity>> =
+        smartRepository.rankingSince(cutoff)
+
+    override suspend fun insertPlaybackEvent(song: Song, timePlayed: Long, durationMs: Long) =
+        smartRepository.insertPlaybackEvent(song, timePlayed, durationMs)
 
     override suspend fun initializeBlacklist() {
         songRepository.initializeBlacklist()

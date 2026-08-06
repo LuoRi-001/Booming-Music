@@ -17,7 +17,13 @@ class AudioCoverKeyer : Keyer<AudioCover> {
                 append("song::")
             }
             append("albumId=").append(data.albumId)
-            append("|uri=").append(data.uri.toString())
+            // Note: do NOT include data.uri in the key. The URI includes the
+            // MediaStore volume name (e.g. "external" vs "external_primary"),
+            // which differs depending on whether the Song originated from a
+            // PlayCountEntity (volumeName=null → getAudioContentUri()) or
+            // directly from a MediaStore cursor (volumeName="external_primary").
+            // Same song, different URI = different cache key → cache miss →
+            // fetcher called with wrong URI → cover fails.
             append("|path=").append(data.path)
             append("|folderArt=").append(data.isUseFolderArt)
             append("|lastModified=").append(data.lastModified)

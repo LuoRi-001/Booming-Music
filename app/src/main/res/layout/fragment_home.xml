@@ -26,7 +26,7 @@
             android:id="@+id/home_content"
             layout="@layout/home_content"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="wrap_content" />
 
     </androidx.core.widget.NestedScrollView>
 

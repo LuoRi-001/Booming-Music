@@ -53,6 +53,16 @@ class SongListFragment : AbsRecyclerViewCustomGridSizeFragment<SongAdapter, Grid
         super.onViewCreated(view, savedInstanceState)
         libraryViewModel.getSongs().observe(viewLifecycleOwner) { songs ->
             adapter?.dataSet = songs
+            updateToolbarSongCount(songs.size)
+        }
+    }
+
+    private fun updateToolbarSongCount(count: Int) {
+        val baseTitle = resources.getString(titleRes)
+        appBarLayout.title = if (count > 0) {
+            "$baseTitle ($count)"
+        } else {
+            baseTitle
         }
     }
 

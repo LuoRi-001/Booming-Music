@@ -80,3 +80,9 @@ local.properties
 /.kotlin/
 
 get_weblate_translators.py
+### Local tooling (not part of the project) ###
+developode cache/
+del_c_gradle.bat
+skills-lock.json
+.agents/
+.claude/skills/pua/
