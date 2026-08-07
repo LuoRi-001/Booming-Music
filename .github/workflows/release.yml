@@ -63,9 +63,10 @@ jobs:
   publish-release:
     needs: build
     runs-on: ubuntu-latest
-    if: > # TEMPORARY: Prevent releases for alpha/beta/rc tags.
-      !contains(github.ref_name, 'alpha') && 
-      !contains(github.ref_name, 'beta') && 
+    # TEMPORARY: Prevent releases for alpha/beta/rc tags.
+    if: >-
+      !contains(github.ref_name, 'alpha') &&
+      !contains(github.ref_name, 'beta') &&
       !contains(github.ref_name, 'rc')
 
     steps:
