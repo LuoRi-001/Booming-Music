@@ -1,6 +1,0 @@
-* Added quick actions for Select All and Paste to make editing easier in the lyrics editor
-* The lyrics editor now shows more clearly the source of the lyrics being edited
-* It's now easier to open another EQ app from the built-in equalizer
-* LRC files and embedded synced lyrics now take priority over downloaded ones
-* Improved logic for detecting and matching LRC files
-* Minor bug fixes and overall improvements

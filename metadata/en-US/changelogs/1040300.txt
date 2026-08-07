@@ -1,6 +1,0 @@
-* Improved the full lyrics screen
-* Albums in an artist's detail page now appear at the top
-* New option to display artist albums horizontally or vertically
-* Fixed an Android 14+ issue that blocked adding folders to the blacklist or whitelist, even with permissions granted
-* Removed the audio visualizer
-* Permissions were revised and cleaned up

@@ -1,1 +1,0 @@
-Ein moderner, Material 3 lokaler Musikplayer für reibungsloses Offline-Hören

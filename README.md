@@ -6,12 +6,9 @@
 
 ### Modern design. Pure sound. Fully yours.
 
-[![Latest Release](https://img.shields.io/github/v/release/mardous/BoomingMusic?style=for-the-badge&label=Release&logo=github)](https://github.com/mardous/BoomingMusic/releases/latest)
-[![F-Droid version](https://img.shields.io/f-droid/v/com.mardous.booming?style=for-the-badge&label=F-Droid&logo=fdroid)](https://f-droid.org/packages/com.mardous.booming/)
-[![Downloads](https://img.shields.io/github/downloads/mardous/BoomingMusic/total?style=for-the-badge&logo=github&label=Downloads)](https://github.com/mardous/BoomingMusic/releases)
-[![License: GPL v3](https://img.shields.io/github/license/mardous/BoomingMusic?style=for-the-badge&color=orange&label=License&logo=gnu)](LICENSE.txt)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor_Covenant-2.1-4baaaa.svg?style=for-the-badge&logo=contributorcovenant)](CODE_OF_CONDUCT.md)
-[![Telegram Channel](https://img.shields.io/badge/Telegram-Join_Chat-blue?style=for-the-badge&logo=telegram)](https://t.me/mardousdev)
+[![Latest Release](https://img.shields.io/github/v/release/LuoRi-001/BooMingMusic?style=for-the-badge&label=Release&logo=github)](https://github.com/LuoRi-001/BooMingMusic/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/LuoRi-001/BooMingMusic/total?style=for-the-badge&logo=github&label=Downloads)](https://github.com/LuoRi-001/BooMingMusic/releases)
+[![License: GPL v3](https://img.shields.io/github/license/LuoRi-001/BooMingMusic?style=for-the-badge&color=orange&label=License&logo=gnu)](LICENSE.txt)
 
 </div>
 
@@ -19,11 +16,10 @@
 
 - [✨ Key Features](#-key-features)
 - [📸 Screenshots](#-screenshots)
+- [📥 Download & Install](#-download--install)
 - [💻 Tech Stack](#-tech-stack)
 - [🧩 Roadmap](#-roadmap)
-- [🔗 Useful Links](#-useful-links)
 - [🤝 Contributing](#-contributing)
-- [🙌 Credits](#-credits)
 - [⚖️ License](#-license)
 
 ## ✨ Key Features
@@ -74,18 +70,11 @@
 
 ## 📥 Download & Install
 
-Booming Music is available for download from various sources:
-
 <div align="center">
 
 |                                                                                   Source                                                                                    | Details                                   |
 |:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:------------------------------------------|
-|                               [<img src="assets/badge-playstore.png" alt="Play Store" height="35">](https://github.com/mardous/BoomingMusic)                                | Coming soon!                              |                                     |
-|                      [<img src="assets/badge-github.png" alt="GitHub Releases" height="35">](https://github.com/mardous/BoomingMusic/releases/latest)                       | Direct APK download                       |
-|                              [<img src="assets/badge-fdroid.png" alt="F-Droid" height="35">](https://f-droid.org/packages/com.mardous.booming)                              | Fully FOSS version                        |
-|                       [<img src="assets/badge-izzyondroid.png" alt="IzzyOnDroid" height="35">](https://apt.izzysoft.de/packages/com.mardous.booming/)                       | Just like F-Droid but with faster updates |                         |
-| [<img src="assets/badge-obtainium.png" alt="Obtainium" height="35">](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/mardous/BoomingMusic/) | Automatic updates from GitHub             |
-|                         [<img src="assets/badge-openapk.png" alt="OpenAPK" height="35">](https://www.openapk.net/boomingmusic/com.mardous.booming/)                         | Alternative APK source                    |
+|                      [<img src="assets/badge-github.png" alt="GitHub Releases" height="35">](https://github.com/LuoRi-001/BooMingMusic/releases/latest)                       | Direct APK download                       |
 
 </div>
 
@@ -106,31 +95,11 @@ Booming Music is available for download from various sources:
 ## 🧩 Roadmap
 
 - [ ] 📦 Independent library scanner (no MediaStore dependency)
-- [ ] 🎨 Multi-artist support (split & index properly)
-- [ ] 🎵 Improved genre handling
+- [ ] 🎵 Multi-artist support (split & index properly)
+- [ ] 🎧 Improved genre handling
 - [ ] 🔁 Last.fm integration (import/export playback data)
 - [ ] 💿 Enhanced artist pages (separate albums and singles visually)
 - [ ] 🌐 Jellyfin & Navidrome integration
-
-## 🔗 Useful Links
-
-- 🔐 **[Requested Permissions](https://github.com/mardous/BoomingMusic/wiki/Advanced-Info#-permissions)**  
-  What the app needs and why
-
-- 🚘 **[Android Auto Setup](https://github.com/mardous/BoomingMusic/wiki/Advanced-Info#-android-auto-setup)**  
-  How to enable and troubleshoot
-
-- 🎧 **[Supported Formats](https://github.com/mardous/BoomingMusic/wiki/Advanced-Info#-supported-formats)**  
-  Compatible audio formats
-
-- 💬 **[Community](https://github.com/mardous/BoomingMusic/wiki/Community)**  
-  Users and contributors
-
-- 🌐 **[Translations](https://hosted.weblate.org/projects/booming-music/)**  
-  Help us translate Booming Music into your language
-
-- ❓ **[FAQ](https://github.com/mardous/BoomingMusic/wiki/FAQ)**  
-  Common questions
 
 ## 🤝 Contributing
 
@@ -143,62 +112,11 @@ You can also:
 - Submit pull requests
 - Suggest new ideas
 
-**Translations:** Managed on [Hosted Weblate](https://hosted.weblate.org/projects/booming-music/).
-
-[![Translation Status](https://hosted.weblate.org/widget/booming-music/horizontal-auto.svg)](https://hosted.weblate.org/projects/booming-music/)
-
-## 💖 Support Development
-
-Booming Music is an open-source project developed and maintained with passion in my spare time.
-If you enjoy the app and the free features it offers, please consider supporting me to help cover
-development costs and dedicate more time to new features.
-
-Your support is greatly appreciated and keeps me motivated to continue improving Booming Music!
-
-<div align="center">
-
-<a href="https://ko-fi.com/christiaam" target="_blank">
-<img src="https://storage.ko-fi.com/cdn/brandasset/v2/support_me_on_kofi_red.png" alt="Support me on Ko-fi" style="border: 0px; height: 40px;" />
-</a>
-
-### ❤️ Supporters
-
-<table>
-  <tr>
-    <td>
-      <b>mbeezy</b><br/>
-      <b><a href="https://github.com/Qoojoe">KKTweex</a></b><br/>
-      <b><a href="https://github.com/FabiRich">FabiRich</a></b><br/>
-      <b><a href="https://github.com/Bloodaxe95">Bloodaxe</a></b><br/>
-      <b>Bernhard</b>
-    </td>
-    <td>
-      <b>Andreas Hirth</b><br/>
-      <b>Revolver327</b><br/>
-      <b>Peter Smith</b><br/>
-      <b>Michele Simoncelli</b>
-    </td>
-  </tr>
-</table>
-
-</div>
-
-## 🙌 Credits
-
-Inspired by [Retro Music Player](https://github.com/RetroMusicPlayer/RetroMusicPlayer).
-Also thanks to:
-
-- [AMLV](https://github.com/dokar3/amlv)
-- [LRCLib](https://lrclib.net/)
-- [Better Lyrics](https://better-lyrics.boidu.dev/)
-- [Lyrically API](https://lyrics.paxsenix.org/) (by [Alex](https://github.com/Paxsenix0))
-
 ## ⚖️ License
 
 ```
 GNU General Public License - Version 3
-
-Copyright (C) 2025 Christians Martínez Alvarado
+```
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
