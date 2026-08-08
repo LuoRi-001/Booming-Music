@@ -57,7 +57,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,26 +73,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
-import coil3.compose.AsyncImage
 import com.mardous.booming.App
 import com.mardous.booming.BuildConfig
 import com.mardous.booming.R
 import com.mardous.booming.core.model.about.AboutItemData
-import com.mardous.booming.core.model.about.Contribution
 import com.mardous.booming.extensions.MIME_TYPE_PLAIN_TEXT
 import com.mardous.booming.extensions.openUrl
 import com.mardous.booming.extensions.toChooser
 import com.mardous.booming.extensions.tryStartActivity
 import com.mardous.booming.ui.component.compose.CollapsibleAppBarScaffold
-import com.mardous.booming.util.Constants
 import com.mardous.booming.util.Constants.AUTHOR_GITHUB_URL
-import com.mardous.booming.util.Constants.DONATION_LINK
 import com.mardous.booming.util.Constants.DOWNLOAD_URL
 import com.mardous.booming.util.Constants.FAQ_LINK
 import com.mardous.booming.util.Constants.GITHUB_URL
+import com.mardous.booming.util.Constants.ISSUE_TRACKER_LINK
 import com.mardous.booming.util.Constants.RELEASES_LINK
-import com.mardous.booming.util.Constants.SUPPORT_EMAIL
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -116,36 +110,6 @@ fun AboutScreen(
         "Unknown"
     }
 
-    var showTranslatorsDialog by remember { mutableStateOf(false) }
-    val translators by produceState(emptyList()) {
-        value = Contribution.loadContributions(context, "translators.json").map {
-            AboutItemData(
-                icon = { AboutItemIcon(painterResource(R.drawable.ic_translate_24dp)) },
-                title = it.name,
-                markdown = it.description,
-                onClick = {}
-            )
-        }
-    }
-
-    if (showTranslatorsDialog) {
-        ModalBottomSheet(onDismissRequest = { showTranslatorsDialog = false}) {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
-            ) {
-                itemsIndexed(translators) { index, item ->
-                    AboutListItem(
-                        index = index,
-                        itemCount = translators.size,
-                        data = item,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = .8f)
-                    )
-                }
-            }
-        }
-    }
-
     var showLicensesDialog by remember { mutableStateOf(false) }
     val libraries by produceLibraries(R.raw.aboutlibraries)
     if (showLicensesDialog) {
@@ -166,9 +130,7 @@ fun AboutScreen(
         }
     }
 
-    val sections = getAboutSections(
-        onTranslatorsClick = { showTranslatorsDialog = true }
-    )
+    val sections = getAboutSections()
 
     CollapsibleAppBarScaffold(
         title = stringResource(R.string.about_title),
@@ -195,19 +157,7 @@ fun AboutScreen(
 
             item {
                 AuthorSection(
-                    onGitHubClick = { context.openUrl(AUTHOR_GITHUB_URL) },
-                    onEmailClick = {
-                        context.tryStartActivity(
-                            Intent(Intent.ACTION_SENDTO)
-                                .setData("mailto:".toUri())
-                                .putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
-                                .putExtra(
-                                    Intent.EXTRA_SUBJECT,
-                                    "Booming Music - Support & questions"
-                                )
-                        )
-                    },
-                    onDonateClick = { context.openUrl(DONATION_LINK) }
+                    onGitHubClick = { context.openUrl(AUTHOR_GITHUB_URL) }
                 )
             }
 
@@ -327,9 +277,7 @@ private fun BoomingMusicHeader(
 
 @Composable
 private fun AuthorSection(
-    onGitHubClick: () -> Unit = {},
-    onEmailClick: () -> Unit = {},
-    onDonateClick: () -> Unit = {}
+    onGitHubClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -346,21 +294,14 @@ private fun AuthorSection(
                 .padding(horizontal = 16.dp)
                 .padding(top = 16.dp, bottom = 8.dp)
         ) {
-            AboutContributorImage(
-                username = "mardous",
-                modifier = Modifier.size(88.dp)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
             Text(
-                text = stringResource(R.string.mardous),
+                text = stringResource(R.string.luori),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                text = stringResource(R.string.mardous_summary),
+                text = stringResource(R.string.luori_summary),
                 style = MaterialTheme.typography.bodyLarge
             )
         }
@@ -372,20 +313,6 @@ private fun AuthorSection(
                 .wrapContentSize()
                 .padding(8.dp)
         ) {
-            if (!App.isPlayStoreBuild()) {
-                Button(
-                    onClick = onDonateClick,
-                    modifier = Modifier.wrapContentSize()
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_volunteer_activism_24dp),
-                        contentDescription = null
-                    )
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text(stringResource(R.string.support_my_work))
-                }
-            }
-
             IconButton(
                 onClick = onGitHubClick,
                 modifier = Modifier.wrapContentSize()
@@ -393,16 +320,6 @@ private fun AuthorSection(
                 Icon(
                     painter = painterResource(R.drawable.ic_github_circle_24dp),
                     contentDescription = "GitHub profile"
-                )
-            }
-
-            IconButton(
-                onClick = onEmailClick,
-                modifier = Modifier.wrapContentSize()
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_email_24dp),
-                    contentDescription = "Write an email"
                 )
             }
         }
@@ -446,19 +363,6 @@ private fun AboutItemIcon(
 }
 
 @Composable
-private fun AboutContributorImage(
-    username: String,
-    modifier: Modifier = Modifier
-) {
-    AsyncImage(
-        model = "file:///android_asset/images/${username}.png".toUri(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier.clip(CircleShape)
-    )
-}
-
-@Composable
 private fun AboutHeaderButton(
     icon: Int,
     label: String,
@@ -489,106 +393,19 @@ private fun AboutHeaderButton(
 }
 
 @Composable
-private fun getAboutSections(
-    onTranslatorsClick: () -> Unit
-): List<Pair<String, List<AboutItemData>>> {
+private fun getAboutSections(): List<Pair<String, List<AboutItemData>>> {
     val context = LocalContext.current
 
     val sendInvitationTitle = stringResource(R.string.send_invitation_message)
     val invitationMessage = stringResource(R.string.invitation_message_content, DOWNLOAD_URL)
 
-    fun openGithubProfile(username: String) {
-        context.openUrl("https://github.com/$username")
-    }
-
     return listOf(
-        stringResource(R.string.contributors) to listOf(
-            AboutItemData(
-                icon = {
-                    AboutContributorImage(
-                        username = "dawid",
-                        modifier = Modifier.size(48.dp)
-                    )
-                },
-                title = stringResource(R.string.contributor_dawid),
-                summary = stringResource(R.string.contributor_dawid_description),
-                onClick = { openGithubProfile("hackzy01") }
-            ),
-            AboutItemData(
-                icon = {
-                    AboutContributorImage(
-                        username = "lenard",
-                        modifier = Modifier.size(48.dp)
-                    )
-                },
-                title = stringResource(R.string.contributor_lenard),
-                summary = stringResource(R.string.contributor_lenard_description),
-                onClick = { openGithubProfile("lenardflx") }
-            ),
-            AboutItemData(
-                icon = {
-                    AboutContributorImage(
-                        username = "ttop",
-                        modifier = Modifier.size(48.dp)
-                    )
-                },
-                title = stringResource(R.string.contributor_ttop),
-                summary = stringResource(R.string.contributor_ttop_description),
-                onClick = { openGithubProfile("TheTerminatorOfProgramming") }
-            ),
-            AboutItemData(
-                icon = {
-                    AboutContributorImage(
-                        username = "ray",
-                        modifier = Modifier.size(48.dp)
-                    )
-                },
-                title = stringResource(R.string.contributor_ray),
-                summary = stringResource(R.string.contributor_ray_description),
-                onClick = { openGithubProfile("raycadle") }
-            ),
-            AboutItemData(
-                icon = {
-                    AboutContributorImage(
-                        username = "alex",
-                        modifier = Modifier.size(48.dp)
-                    )
-                },
-                title = stringResource(R.string.contributor_alex),
-                summary = stringResource(R.string.contributor_alex_description),
-                onClick = { openGithubProfile("Paxsenix0") }
-            ),
-            AboutItemData(
-                icon = { AboutItemIcon(painterResource(R.drawable.ic_translate_24dp)) },
-                title = stringResource(R.string.translators_title),
-                summary = stringResource(R.string.translators_summary),
-                onClick = onTranslatorsClick
-            ),
-            AboutItemData(
-                icon = { AboutItemIcon(painterResource(R.drawable.ic_groups_24dp)) },
-                title = stringResource(R.string.more_contributors_title),
-                summary = stringResource(R.string.more_contributors_summary),
-                onClick = { context.openUrl(Constants.COMMUNITY_LINK) }
-            )
-        ),
         stringResource(R.string.support_development) to listOf(
             AboutItemData(
                 icon = { AboutItemIcon(painterResource(R.drawable.ic_bug_report_24dp)) },
                 title = stringResource(R.string.report_bugs),
                 summary = stringResource(R.string.report_bugs_summary),
-                onClick = { context.openUrl(Constants.ISSUE_TRACKER_LINK) }
-            ),
-            AboutItemData(
-                icon = { AboutItemIcon(painterResource(R.drawable.ic_language_24dp)) },
-                title = stringResource(R.string.help_with_translations),
-                summary = stringResource(R.string.help_with_translations_summary),
-                onClick = { context.openUrl(Constants.TRANSLATIONS_LINK) }
-            ),
-            AboutItemData(
-                icon = { AboutItemIcon(painterResource(R.drawable.ic_telegram_24dp)) },
-                title = stringResource(R.string.telegram_community),
-                summary = stringResource(R.string.telegram_community_summary),
-                onClick = { context.openUrl(Constants.TELEGRAM_COMMUNITY_LINK) }
+                onClick = { context.openUrl(ISSUE_TRACKER_LINK) }
             ),
             AboutItemData(
                 icon = { AboutItemIcon(painterResource(R.drawable.ic_share_24dp)) },

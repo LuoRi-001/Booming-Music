@@ -484,15 +484,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Lisensi</string>
     <string name="author">Penulis</string>
-    <string name="mardous_summary">Pengembang Utama</string>
-    <string name="contributors">Kontributor</string>
-    <string name="translators_title">Penerjemah</string>
-    <string name="translators_summary">Terima kasih kepada mereka yang membuat Booming Music tersedia dalam berbagai bahasa.</string>
-    <string name="view_profile_on_github">Lihat profil di GitHub</string>
-    <string name="write_an_email">Tulis email</string>
     <string name="support_development">Dukung pengembangan</string>
-    <string name="help_with_translations">Bantu penerjemahan</string>
-    <string name="help_with_translations_summary">Anda dapat berkontribusi pada proyek ini dengan membantu menerjemahkan Booming Music ke dalam bahasa lain.</string>
     <string name="report_bugs">Laporkan bug</string>
     <string name="report_bugs_summary">Laporkan bug atau minta fitur baru.</string>
     <string name="share_app">Bagikan aplikasi ini</string>
@@ -846,9 +838,6 @@
     <string name="error_lastfm_generic">Terjadi kesalahan tak terduga dengan Last.fm. Silakan coba lagi.</string>
     <string name="error_network_timeout">Koneksi habis waktu. Periksa internet Anda dan coba lagi.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Komunitas Telegram</string>
-    <string name="telegram_community_summary">Bergabunglah dengan komunitas Telegram kami untuk mendapatkan informasi terbaru tentang rilis dan berita baru.</string>
-    <string name="support_my_work">Dukung pekerjaan saya</string>
     <string name="network_title">Jaringan</string>
     <string name="network_summary">Kelola fitur internet seperti integrasi Last.fm, penyedia lirik, dan unduhan metadata.</string>
     <string name="widgets_header">Widget aplikasi</string>
@@ -935,8 +924,6 @@
     <string name="rg_without_tag">Tanpa tag</string>
     <string name="app_version_x">Versi %s</string>
     <string name="app_description">Desain modern. Suara murni. Sepenuhnya milik Anda.</string>
-    <string name="more_contributors_title">Kontributor lainnya</string>
-    <string name="more_contributors_summary">Anda dapat melihat daftar lengkap kontributor di GitHub.</string>
     <string name="lyrics_karaoke_style_title">Lirik bergaya karaoke</string>
     <string name="lyrics_karaoke_style_summary">Mengaktifkan efek bergaya karaoke untuk lirik yang tersinkron kata demi kata. Harap diperhatikan bahwa ini adalah fitur eksperimental.</string>
     <string name="lyrics_show_translation_title">Tampilkan terjemahan</string>

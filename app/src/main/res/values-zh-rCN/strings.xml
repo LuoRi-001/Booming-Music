@@ -486,15 +486,7 @@
     <string name="faq">常见问题</string>
     <string name="licenses">许可协议</string>
     <string name="author">作者</string>
-    <string name="mardous_summary">主要开发者</string>
-    <string name="contributors">贡献者</string>
-    <string name="translators_title">译者</string>
-    <string name="translators_summary">感谢那些为 Booming Music 提供多种语言的人们。</string>
-    <string name="view_profile_on_github">在 GitHub 上查看个人资料</string>
-    <string name="write_an_email">电子邮件</string>
     <string name="support_development">支持开发</string>
-    <string name="help_with_translations">帮助翻译</string>
-    <string name="help_with_translations_summary">您可以通过帮助将 Booming Music 翻译成其他语言来为该项目做出贡献。</string>
     <string name="report_bugs">报告错误</string>
     <string name="report_bugs_summary">报告错误或请求新功能。</string>
     <string name="share_app">分享此应用</string>
@@ -821,7 +813,6 @@
     <string name="uncaught_error_restart_app">重启应用</string>
     <string name="uncaught_error_github">在 GitHub 上反馈问题</string>
     <string name="uncaught_error_send">发送报告</string>
-    <string name="support_my_work">支持我的作品</string>
     <string name="lastfm_login_username">用户名</string>
     <string name="lastfm_login_password">密码</string>
     <string name="lastfm_login_toggle_password_visibility">切换显示/隐藏密码</string>
@@ -833,8 +824,6 @@
     <string name="error_lastfm_generic">Last.fm 发生意外错误。请重试。</string>
     <string name="error_network_timeout">连接超时。请检查您的互联网连接后重试。</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegram 社区</string>
-    <string name="telegram_community_summary">加入我们的 Telegram 社区，接收版本更新和其他消息。</string>
     <string name="network_title">网络</string>
     <string name="network_summary">管理 Last.fm 集成、歌词提供方和元数据下载等联网功能。</string>
     <string name="images_title">图片</string>
@@ -953,8 +942,6 @@
     <string name="lyrics_resume_on_seek_summary">点击歌词时恢复播放。</string>
     <string name="app_version_x">版本 %s</string>
     <string name="app_description">现代设计 · 纯净听感 · 由你定义</string>
-    <string name="more_contributors_title">更多贡献者</string>
-    <string name="more_contributors_summary">您可以在 GitHub 上查看完整的贡献者名单。</string>
 
     <!-- Listening stats -->
     <string name="listening_stats">听歌统计</string>

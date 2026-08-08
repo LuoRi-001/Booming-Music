@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licenze</string>
     <string name="author">Autore</string>
-    <string name="mardous_summary">Sviluppatore principale</string>
-    <string name="contributors">Collaboratori</string>
-    <string name="translators_title">Traduttori</string>
-    <string name="translators_summary">Grazie a coloro che rendono Booming Music disponibile in tante lingue.</string>
-    <string name="view_profile_on_github">Visualizza il profilo su GitHub</string>
-    <string name="write_an_email">Scrivi un\'email</string>
     <string name="support_development">Sosteni lo sviluppo</string>
-    <string name="help_with_translations">Contribuisci alle traduzioni</string>
-    <string name="help_with_translations_summary">Puoi contribuire al progetto aiutando a tradurre Booming Music in altre lingue.</string>
     <string name="report_bugs">Segnala bug</string>
     <string name="report_bugs_summary">Segnala bug o richiedi nuove funzionalità.</string>
     <string name="share_app">Condividi questa app</string>
@@ -879,9 +871,6 @@
     <string name="error_listenbrainz_invalid_token">Token ListenBrainz non valido.</string>
     <string name="sleep_timer_x_secs">%d secondi</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Community Telegram</string>
-    <string name="telegram_community_summary">Unisciti alla nostra community Telegram per rimanere aggiornato su nuovi rilasci e notizie.</string>
-    <string name="support_my_work">Supporta il mio lavoro</string>
     <string name="network_title">Rete</string>
     <string name="network_summary">Gestisci le funzionalità internet come l\'integrazione con Last.fm, i provider delle parole delle canzoni, e il download dei metadati.</string>
     <string name="lyrics_by_x">Testo di %s</string>

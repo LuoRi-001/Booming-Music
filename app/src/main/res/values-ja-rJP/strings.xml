@@ -484,15 +484,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">ライセンス</string>
     <string name="author">作成者</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">コントリビューター</string>
-    <string name="translators_title">翻訳者</string>
-    <string name="translators_summary">Booming Musicを多くの言語で利用可能にしてくれた人たちに感謝します。</string>
-    <string name="view_profile_on_github">GitHubでプロフィールを表示</string>
-    <string name="write_an_email">メールを書く</string>
     <string name="support_development">開発を支援する</string>
-    <string name="help_with_translations">翻訳を支援</string>
-    <string name="help_with_translations_summary">Booming Musicを他の言語に翻訳することで、プロジェクトに貢献できます。</string>
     <string name="report_bugs">バグを報告</string>
     <string name="report_bugs_summary">バグを報告するか、新機能をリクエストしてください。</string>
     <string name="share_app">このアプリを共有</string>
@@ -836,9 +828,6 @@
     <string name="error_lastfm_generic">Last.fmで予期せぬエラーが発生しました。もう一度お試しください。</string>
     <string name="error_network_timeout">タイムアウトしました。インターネット接続を確認し、もう一度お試しください。</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegramコミュニティ</string>
-    <string name="telegram_community_summary">Telegramコミュニティに参加して、新リリースとニュースをご確認ください。</string>
-    <string name="support_my_work">ご支援ください</string>
     <string name="network_title">ネットワーク</string>
     <string name="network_summary">Last.fmとの連携、歌詞プロバイダー、メタデータのダウンロードなど、インターネット関連機能の管理。</string>
     <string name="images_title">画像</string>

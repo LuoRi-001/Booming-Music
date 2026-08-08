@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Lisenssit</string>
     <string name="author">Tekijä</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Avustajat</string>
-    <string name="translators_title">Kääntäjät</string>
-    <string name="translators_summary">Kiitos niille, jotka tekevät Booming musiikkia saatavilla monilla kielillä.</string>
-    <string name="view_profile_on_github">Näytä profiili GitHubissa</string>
-    <string name="write_an_email">Kirjoita sähköposti</string>
     <string name="support_development">Tue kehitystä</string>
-    <string name="help_with_translations">Auta käännösten kanssa</string>
-    <string name="help_with_translations_summary">Voit osallistua projektiin auttamalla kääntämään Booming Music muille kielille.</string>
     <string name="report_bugs">Ilmoita virheistä</string>
     <string name="report_bugs_summary">Ilmoita virheistä tai pyydä uusia ominaisuuksia.</string>
     <string name="share_app">Jaa tämä sovellus</string>

@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licenties</string>
     <string name="author">Auteur</string>
-    <string name="mardous_summary">Hoofdontwikkelaar</string>
-    <string name="contributors">Bijdragers</string>
-    <string name="translators_title">Vertalers</string>
-    <string name="translators_summary">Dank aan degenen die Booming Music in veel talen beschikbaar maken.</string>
-    <string name="view_profile_on_github">Bekijk profiel op GitHub</string>
-    <string name="write_an_email">Schrijf een email</string>
     <string name="support_development">Ondersteun ontwikkeling</string>
-    <string name="help_with_translations">Help met vertalingen</string>
-    <string name="help_with_translations_summary">Je kunt bijdragen aan het project door Booming Music naar andere talen te vertalen.</string>
     <string name="report_bugs">Meld bugs</string>
     <string name="report_bugs_summary">Rapporteer bugs of verzoek nieuwe functies.</string>
     <string name="share_app">Deel deze app</string>
@@ -854,9 +846,6 @@
     <string name="error_lastfm_generic">Er is een onverwachte fout opgetreden bij Last.fm. Probeer het opnieuw.</string>
     <string name="error_network_timeout">Verbinding is verbroken. Controleer je internetverbinding en probeer het opnieuw.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegram community</string>
-    <string name="telegram_community_summary">Word lid van onze Telegram-community om op de hoogte te blijven van nieuwe releases en nieuws.</string>
-    <string name="support_my_work">Steun mijn werk</string>
     <string name="network_title">Netwerk</string>
     <string name="network_summary">Beheer internetfuncties zoals Last.fm-integratie, aanbieders van songteksten en het downloaden van metadata.</string>
     <string name="widgets_header">App widgets</string>

@@ -524,15 +524,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">التراخيص</string>
     <string name="author">المؤلف</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">المساهمون</string>
-    <string name="translators_title">المترجمون</string>
-    <string name="translators_summary">شكراً لأولئك الذين يجعلون الموسيقى المزدهرة متاحة بعدة لغات.</string>
-    <string name="view_profile_on_github">عرض الملف الشخصي على GitHub</string>
-    <string name="write_an_email">كتابة بريد إلكتروني</string>
     <string name="support_development">دعم التطوير</string>
-    <string name="help_with_translations">المساعدة في الترجمات</string>
-    <string name="help_with_translations_summary">يمكنك المساهمة في المشروع من خلال المساعدة في ترجمة الموسيقى المزدهرة إلى لغات أخرى.</string>
     <string name="report_bugs">الإبلاغ عن الأخطاء</string>
     <string name="report_bugs_summary">الإبلاغ عن الأخطاء أو طلب ميزات جديدة.</string>
     <string name="share_app">شارك هذا التطبيق</string>

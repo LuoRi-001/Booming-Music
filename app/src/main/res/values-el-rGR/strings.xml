@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Άδειες</string>
     <string name="author">Συγγραφέας</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Contributors</string>
-    <string name="translators_title">Translators</string>
-    <string name="translators_summary">Ευχαριστούμε όσους κάνουν την Booming Music διαθέσιμη σε πολλές γλώσσες.</string>
-    <string name="view_profile_on_github">Προβολή προφίλ στο GitHub</string>
-    <string name="write_an_email">Γράψτε ένα email</string>
     <string name="support_development">Ανάπτυξη υποστήριξης</string>
-    <string name="help_with_translations">Βοήθεια για μεταφράσεις</string>
-    <string name="help_with_translations_summary">Μπορείτε να συνεισφέρετε στο έργο βοηθώντας στη μετάφραση της Booming Music σε άλλες γλώσσες.</string>
     <string name="report_bugs">Αναφορά σφαλμάτων</string>
     <string name="report_bugs_summary">Αναφέρετε σφάλματα ή ζητήστε νέα χαρακτηριστικά.</string>
     <string name="share_app">Μοιραστείτε την εφαρμογή</string>
@@ -823,8 +815,6 @@
     <string name="uncaught_error_send">Send report</string>
     <string name="app_widget_card_desc">Εξιδανικευμένο και απλοποιημένο στυλ</string>
     <string name="app_widget_full">Πλήρες</string>
-    <string name="telegram_community">Κοινότητα στο Telegram</string>
-    <string name="telegram_community_summary">Συνδεθείτε στην κοινότητά μας στο Telegram για να μένετε ενημερωμένοι για νέες εκδόσεις και νέα.</string>
     <string name="app_widget_card">Κάρτα</string>
     <string name="app_widget_responsive">αποκριτικό</string>
     <string name="app_widget_responsive_desc">Ένα widget που αλλάζει ανάλογα με το μέγεθος του layout</string>

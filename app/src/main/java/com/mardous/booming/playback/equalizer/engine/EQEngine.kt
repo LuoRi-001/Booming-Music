@@ -28,6 +28,12 @@ abstract class EQEngine(val sessionId: Int) {
     abstract val isEnabled: Boolean
     abstract val isMBCSupported: Boolean
     abstract val isLimiterSupported: Boolean
+    /**
+     * Whether the underlying effect(s) were actually created and attached.
+     * False when the audio session didn't exist yet at creation time — the
+     * engine should then be recreated once the session is live.
+     */
+    abstract val isOperational: Boolean
     abstract val bandCapabilities: EqBandCapabilities
     abstract fun setEnabled(isEnabled: Boolean)
     abstract fun setProfile(profile: EqProfile)

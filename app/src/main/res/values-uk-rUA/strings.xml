@@ -508,15 +508,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Ліцензії</string>
     <string name="author">Автор</string>
-    <string name="mardous_summary">Провідний розробник</string>
-    <string name="contributors">Співавтори</string>
-    <string name="translators_title">Перекладачі</string>
-    <string name="translators_summary">Дякуємо тим, хто робить Booming Music доступним багатьма мовами.</string>
-    <string name="view_profile_on_github">Переглянути профіль на GitHub</string>
-    <string name="write_an_email">Написати листа</string>
     <string name="support_development">Підтримка розробки</string>
-    <string name="help_with_translations">Допомогти з перекладами</string>
-    <string name="help_with_translations_summary">Ви можете зробити внесок у проект шляхом перекладу музики на інші мови.</string>
     <string name="report_bugs">Повідомити про помилки</string>
     <string name="report_bugs_summary">Повідомляйте про помилки або запитуйте нові функції.</string>
     <string name="share_app">Поділитися додатком</string>
@@ -896,9 +888,6 @@
     <string name="error_listenbrainz_invalid_token">Недійсний токен ListenBrainz.</string>
     <string name="sleep_timer_x_secs">%d с</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Спільнота Telegram</string>
-    <string name="telegram_community_summary">Приєднуйтесь до нашої спільноти в Telegram, щоби бути в курсі нових релізів та новин.</string>
-    <string name="support_my_work">Підтримайте мою роботу</string>
     <string name="network_title">Мережа</string>
     <string name="network_summary">Керуйте інтернет-функціями, такими як інтеграція з Last.fm, постачальники текстів пісень та завантаження метаданих.</string>
     <string name="widgets_header">Віджети застосунку</string>

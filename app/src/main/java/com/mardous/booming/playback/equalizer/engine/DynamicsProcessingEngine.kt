@@ -20,6 +20,9 @@ class DynamicsProcessingEngine(sessionId: Int, bandCount: Int) : EQEngine(sessio
     override val isMBCSupported: Boolean = true
     override val isLimiterSupported: Boolean = true
 
+    override val isOperational: Boolean
+        get() = dynamicsProcessing != null
+
     override val isEnabled: Boolean
         get() = execOpCatching(dynamicsProcessing, false) { it.enabled }
 
@@ -210,12 +213,16 @@ class DynamicsProcessingEngine(sessionId: Int, bandCount: Int) : EQEngine(sessio
                         }
                     }
                     preEq.isEnabled = true
-                    mbc.isEnabled = true
+                    // Keep MBC/limiter disabled until the user explicitly
+                    // configures them — an unconfigured enabled stage
+                    // processes audio with default parameters and can
+                    // produce static/noise on some HALs.
+                    mbc.isEnabled = false
                     dp.setPreEqByChannelIndex(channelIndex, preEq)
                     dp.setMbcByChannelIndex(channelIndex, mbc)
 
                     val limiter = dp.getLimiterByChannelIndex(channelIndex)
-                    limiter.isEnabled = true
+                    limiter.isEnabled = false
                     dp.setLimiterByChannelIndex(channelIndex, limiter)
                 }
             }

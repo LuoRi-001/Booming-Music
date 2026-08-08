@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Lisenser</string>
     <string name="author">Forfatter</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Contributors</string>
-    <string name="translators_title">Translators</string>
-    <string name="translators_summary">Thanks to those who make Booming Music available in many languages.</string>
-    <string name="view_profile_on_github">Vis profil på GitHub</string>
-    <string name="write_an_email">Stuur een email</string>
     <string name="support_development">Støtt utviklingen</string>
-    <string name="help_with_translations">Hjelp med oversettelser</string>
-    <string name="help_with_translations_summary">Du kan bidra til prosjektet ved å hjelpe til med å oversette Booming Music til andre språk.</string>
     <string name="report_bugs">Rapporter feil</string>
     <string name="report_bugs_summary">Rapportere feil eller foreslå nye funksjoner.</string>
     <string name="share_app">Del denne appen</string>

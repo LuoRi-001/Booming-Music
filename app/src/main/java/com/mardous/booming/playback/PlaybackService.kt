@@ -285,6 +285,14 @@ class PlaybackService :
         player.setSequentialTimelineEnabled(sequentialTimeline)
         player.addListener(this)
 
+        // Let Media3 allocate the audio session id itself: on the Redmi K80
+        // (HyperOS/Android 15) manually fixing the id makes every AudioEffect
+        // creation fail with Error: -3 (AudioFlinger finds no AudioTrack on
+        // that session). The engine is created from onAudioSessionIdChanged,
+        // right after the real AudioTrack exists, and the pop fixes (no
+        // enable/disable on play/pause, flat profile skips enabling) no
+        // longer depend on attaching before playback.
+
         mediaSession = with(MediaLibrarySession.Builder(this, player, this)) {
             setId(packageName)
             setSessionActivity(createSessionActivityIntent())
@@ -432,6 +440,7 @@ class PlaybackService :
     }
 
     override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        Log.i("PlaybackService", "Audio session reported: $audioSessionId")
         equalizerManager.setSessionId(audioSessionId)
     }
 
@@ -1169,6 +1178,7 @@ class PlaybackService :
         eqStateHandler?.removeCallbacksAndMessages(null)
         uiHandler.removeCallbacks(headsetClickRunnable)
         if (isPlaying) {
+            equalizerManager.confirmSession()
             equalizerManager.setSessionIsActive(true)
         } else {
             eqStateHandler?.postDelayed(500) {

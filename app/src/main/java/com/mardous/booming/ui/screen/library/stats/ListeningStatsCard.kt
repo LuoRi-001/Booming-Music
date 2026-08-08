@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,9 +48,11 @@ fun ListeningStatsCard(
     onCardClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val totalDuration by libraryViewModel.totalDurationForThisWeek().observeAsState(0L)
-    val ranking by libraryViewModel.listeningStatsRanking(StatsTimeRange.WEEK).observeAsState(emptyList())
-    val timelineBars by libraryViewModel.getTimelineBars(StatsTimeRange.WEEK).observeAsState(emptyList())
+    // remember: keep a single LiveData per composition — recreating it on
+    // every recomposition re-ran the query and flashed the default value.
+    val totalDuration by remember { libraryViewModel.totalDurationForThisWeek() }.observeAsState(0L)
+    val ranking by remember { libraryViewModel.listeningStatsRanking(StatsTimeRange.WEEK) }.observeAsState(emptyList())
+    val timelineBars by remember { libraryViewModel.getTimelineBars(StatsTimeRange.WEEK) }.observeAsState(emptyList())
 
     val totalPlays = ranking.sumOf { it.playCount }
     val maxTimelineValue = timelineBars.maxOfOrNull { it.durationMs } ?: 1L

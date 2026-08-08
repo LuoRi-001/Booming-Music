@@ -30,6 +30,7 @@ import com.mardous.booming.extensions.showToast
 import com.mardous.booming.playback.equalizer.EqualizerManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -106,6 +107,11 @@ class EqualizerViewModel(
 
     fun setEqualizerState(isEnabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
+            // Debounce rapid toggles: each enable/disable transition of the
+            // effect chain can produce an audible transient on some devices.
+            if (isEnabled == eqState.value.enabled) return@launch
+            delay(300)
+            if (isEnabled == eqState.value.enabled) return@launch
             equalizerManager.setEqualizerState(
                 eqState.value.copy(enabled = isEnabled)
             )

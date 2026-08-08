@@ -500,15 +500,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licențe</string>
     <string name="author">Autor</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Contributors</string>
-    <string name="translators_title">Translators</string>
-    <string name="translators_summary">Thanks to those who make Booming Music available in many languages.</string>
-    <string name="view_profile_on_github">Vezi profilul pe GitHub</string>
-    <string name="write_an_email">Scrie un e-mail</string>
     <string name="support_development">Sprijină dezvoltarea</string>
-    <string name="help_with_translations">Ajutor cu traducerile</string>
-    <string name="help_with_translations_summary">Poti contribui la proiect ajutand la traducerea muzicii Booming in alte limbi.</string>
     <string name="report_bugs">Raportează erori</string>
     <string name="report_bugs_summary">Raportează erori sau cere noi caracteristici.</string>
     <string name="share_app">Distribuie această aplicație</string>

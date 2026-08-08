@@ -508,15 +508,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Лицензии</string>
     <string name="author">Автор</string>
-    <string name="mardous_summary">Ведущий разработчик</string>
-    <string name="contributors">Участники</string>
-    <string name="translators_title">Переводчики</string>
-    <string name="translators_summary">Спасибо всем, кто помогает переводить Booming Music на разные языки.</string>
-    <string name="view_profile_on_github">Посмотреть профиль на GitHub</string>
-    <string name="write_an_email">Написать письмо</string>
     <string name="support_development">Поддержка разработки</string>
-    <string name="help_with_translations">Помощь с переводами</string>
-    <string name="help_with_translations_summary">Вы можете внести свой вклад в проект, помогая переводить Booming Music на другие языки.</string>
     <string name="report_bugs">Сообщить об ошибках</string>
     <string name="report_bugs_summary">Сообщайте об ошибках или запрашивайте новые функции.</string>
     <string name="share_app">Поделиться приложением</string>
@@ -859,9 +851,6 @@
     <string name="error_lastfm_generic">Произошла непредвиденная ошибка в работе Last.fm. Пожалуйста, попробуйте ещё раз.</string>
     <string name="error_network_timeout">Истекло время ожидания соединения. Проверьте подключение к интернету и повторите попытку.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegram сообщество</string>
-    <string name="telegram_community_summary">Присоединяйтесь к нашему сообществу в Telegram, чтобы быть в курсе новых релизов и новостей.</string>
-    <string name="support_my_work">Поддержите мою работу</string>
     <string name="network_title">Сеть</string>
     <string name="network_summary">Настройка сетевых функций: интеграция с Last.fm, получение текстов песен, загрузка метаданных.</string>
     <string name="images_title">Изображения</string>
@@ -963,8 +952,6 @@
     <string name="lyrics_resume_on_seek_summary">Автоматически возобновлять воспроизведение при нажатии на строку.</string>
     <string name="eq_attack_time">Время атаки</string>
     <string name="app_description">Современный дизайн. Чистый звук. Полностью ваш.</string>
-    <string name="more_contributors_title">Другие участники</string>
-    <string name="more_contributors_summary">Полный список участников можно посмотреть на GitHub.</string>
     <string name="lyrics_karaoke_style_title">Текст в стиле караоке</string>
     <string name="lyrics_karaoke_style_summary">Включает эффект караоке для текста с пословесной синхронизацией. Обратите внимание, что это экспериментальная функция.</string>
     <string name="lyrics_show_translation_title">Отображать перевод</string>

@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Lisanslar</string>
     <string name="author">Geliştirici</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Destekçiler</string>
-    <string name="translators_title">Çevirmenler</string>
-    <string name="translators_summary">Booming Music\'i birçok dilde kullanılabilir hale getirenlere teşekkürler.</string>
-    <string name="view_profile_on_github">GitHub\'da profili görüntüle</string>
-    <string name="write_an_email">E-posta yaz</string>
     <string name="support_development">Geliştirmeyi destekle</string>
-    <string name="help_with_translations">Çevirilere yardım et</string>
-    <string name="help_with_translations_summary">Booming Music\'i diğer dillere çevirmeye yardımcı olarak projeye katkıda bulunabilirsiniz.</string>
     <string name="report_bugs">Hataları bildir</string>
     <string name="report_bugs_summary">Hataları bildirin veya yeni özellikler talep edin.</string>
     <string name="share_app">Bu uygulamayı paylaş</string>

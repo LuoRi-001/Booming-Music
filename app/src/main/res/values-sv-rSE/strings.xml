@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licenser</string>
     <string name="author">Författare</string>
-    <string name="mardous_summary">Huvudutvecklare</string>
-    <string name="contributors">Bidragsgivare</string>
-    <string name="translators_title">Översättare</string>
-    <string name="translators_summary">Tack till dem som gör Booming Music tillgänglig på många språk.</string>
-    <string name="view_profile_on_github">Visa profil på GitHub</string>
-    <string name="write_an_email">Skriv en e-postadress</string>
     <string name="support_development">Stöd utvecklingen</string>
-    <string name="help_with_translations">Hjälp med översättningar</string>
-    <string name="help_with_translations_summary">Du kan bidra till projektet genom att hjälpa till att översätta Booming Music till andra språk.</string>
     <string name="report_bugs">Rapportera buggar</string>
     <string name="report_bugs_summary">Rapportera buggar eller begär nya funktioner.</string>
     <string name="share_app">Dela denna app</string>
@@ -832,9 +824,6 @@
     <string name="error_lastfm_generic">Ett oväntat fel uppstod med Last.fm. Försök igen.</string>
     <string name="error_network_timeout">Anslutningen är inte längre aktiv. Kontrollera din internetanslutning och försök igen.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegram-community</string>
-    <string name="telegram_community_summary">Gå med i vår Telegram-community för att hålla dig uppdaterad om nya utgåvor och nyheter.</string>
-    <string name="support_my_work">Stöd mitt arbete</string>
     <string name="network_title">Nätverk</string>
     <string name="network_summary">Hantera internetfunktioner som Last.fm-integration, låttextleverantörer och nedladdning av metadata.</string>
     <string name="images_title">Bilder</string>

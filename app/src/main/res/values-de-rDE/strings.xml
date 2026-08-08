@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Lizenzen</string>
     <string name="author">Autor</string>
-    <string name="mardous_summary">Hauptentwickler</string>
-    <string name="contributors">Beitragende</string>
-    <string name="translators_title">Übersetzer*innen</string>
-    <string name="translators_summary">Danke an alle, die Booming Music in vielen Sprachen verfügbar machen.</string>
-    <string name="view_profile_on_github">Profil auf GitHub anzeigen</string>
-    <string name="write_an_email">Eine E-Mail schreiben</string>
     <string name="support_development">Entwicklung unterstützen</string>
-    <string name="help_with_translations">Hilf beim Übersetzen</string>
-    <string name="help_with_translations_summary">Du kannst zum Projekt beitragen, indem du dabei hilfst, Booming Music in andere Sprachen zu übersetzen.</string>
     <string name="report_bugs">Fehler melden</string>
     <string name="report_bugs_summary">Melde Fehler oder frage neue Funktionen an.</string>
     <string name="share_app">Diese App teilen</string>
@@ -854,9 +846,6 @@
     <string name="error_lastfm_generic">Ein unerwarteter Fehler trat bei Last.fm auf. Bitte versuche es noch mal.</string>
     <string name="error_network_timeout">Die Verbindung ist abgelaufen. Überprüfe dein Internet und versuche es erneut.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Telegram Community</string>
-    <string name="telegram_community_summary">Tritt unsere Telegramm Community bei, um auf dem neusten Stand bei Veröffentlichungen und Neuigkeiten zu bleiben.</string>
-    <string name="support_my_work">Unterstütze meine Arbeit</string>
     <string name="network_title">Netzwerk</string>
     <string name="network_summary">Verwalte Internet-Funktionen wie Last.fm Integration, Textanbieter und Metadaten-Downloads.</string>
     <string name="widgets_header">App Widgets</string>

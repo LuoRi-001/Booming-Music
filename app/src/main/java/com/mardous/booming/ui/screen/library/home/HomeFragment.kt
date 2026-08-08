@@ -1,13 +1,18 @@
 package com.mardous.booming.ui.screen.library.home
 
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
+import android.view.ViewTreeObserver
 import android.view.MenuInflater
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ConcatAdapter
@@ -21,6 +26,7 @@ import com.mardous.booming.data.model.Artist
 import com.mardous.booming.data.model.ContentType
 import com.mardous.booming.data.model.Song
 import com.mardous.booming.data.model.Suggestion
+import com.mardous.booming.extensions.dip
 import com.mardous.booming.extensions.dp
 import com.mardous.booming.extensions.isNullOrEmpty
 import com.mardous.booming.extensions.navigation.albumDetailArgs
@@ -96,10 +102,45 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     // Warm accent color for shuffle button — picked once per fragment lifetime
     private val warmShuffleColor: Long = WARM_COLORS.random()
 
+    // Scroll position of the home NestedScrollView, saved when leaving the
+    // screen and restored once content is ready, so returning from a detail
+    // screen continues where the user was instead of a fixed position.
+    private var savedScrollY = 0
+    private var isRestoring = false
+    private var restoreTimeout: Runnable? = null
+    private var restorePreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
+
+    private fun logScroll(msg: String) {
+        Log.i("HomeScroll", "$msg scrollY=${binding.container.scrollY}")
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        Log.i("HomeScroll", "onViewCreated savedScrollY=$savedScrollY")
         val homeBinding = FragmentHomeBinding.bind(view)
         _binding = HomeBinding(homeBinding)
+        // A touch on the screen while the auto-restore is pending cancels the
+        // restore — the user is in control now. Programmatic scrolls (the
+        // system's view-state restore, the layout pass clamping the restored
+        // position to the still-shrunk content, our own restore scroll) never
+        // produce touch events, so they can't cancel it.
+        binding.container.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN && isRestoring) {
+                Log.i(
+                    "HomeScroll",
+                    "touch cancels restore (savedScrollY=$savedScrollY, scrollY=${binding.container.scrollY})"
+                )
+                cancelScrollRestore()
+            }
+            false
+        }
+        // Trace every programmatic scroll (system view-state restore, layout
+        // clamping, our own restore) to see where the position lands.
+        binding.container.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            if (scrollY != oldScrollY) {
+                Log.i("HomeScroll", "scroll: $oldScrollY -> $scrollY (restoring=$isRestoring)")
+            }
+        }
         binding.appBarLayout.setupStatusBarForeground()
         setSupportActionBar(binding.toolbar)
         topLevelTransition(view)
@@ -107,6 +148,18 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         setupTitle()
         setupRecommendations()
         checkForMargins()
+        // On the way back from a detail screen the activity shows the bottom
+        // nav in its destination-changed listener, which fires after this
+        // fragment's view is created — checkForMargins above then sees the
+        // nav as hidden and the 80dp bottom margin would arrive only at
+        // onResume, growing the content height after the scroll restore
+        // landed and causing a visible jump. Apply it now, ahead of the
+        // first layout, for the tab-bar home screen.
+        if (!mainActivity.isInOneTabMode) {
+            binding.recyclerView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = dip(R.dimen.bottom_nav_height)
+            }
+        }
 
         homeAdapter = HomeAdapter(arrayListOf(), this).also {
             it.registerAdapterDataObserver(adapterDataObserver)
@@ -129,9 +182,9 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
             destroyOnDetach()
         }
         libraryViewModel.getMiniPlayerMargin().observe(viewLifecycleOwner) {
-            binding.recyclerView.updatePadding(
-                bottom = it.getWithSpace(16.dp(resources), includeInsets = false)
-            )
+            val padding = it.getWithSpace(16.dp(resources), includeInsets = false)
+            Log.i("HomeScroll", "mini margin=${it.margin} -> padding bottom=$padding")
+            binding.recyclerView.updatePadding(bottom = padding)
         }
         libraryViewModel.getSuggestions().apply {
             observe(viewLifecycleOwner) { result ->
@@ -144,6 +197,8 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 hasSuggestionsLoaded = true
                 if (result.data.isNotEmpty()) {
                     this@HomeFragment.statsFooterAdapter?.isVisible = true
+                    Log.i("HomeScroll", "suggestions ready, restoring savedScrollY=$savedScrollY")
+                    restoreScrollPosition()
                 }
             }
         }.also { liveData ->
@@ -237,6 +292,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     override fun onResume() {
         super.onResume()
+        logScroll("onResume")
         checkForMargins()
         // Refresh recommendations on return
         pickRandomSongs()
@@ -244,10 +300,90 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     override fun onPause() {
         super.onPause()
+        logScroll("onPause")
         binding.recyclerView.stopScroll()
     }
 
+    private fun restoreScrollPosition() {
+        if (savedScrollY <= 0 || isRestoring) return
+        isRestoring = true
+        // The stats card renders asynchronously and grows the content height
+        // in stages, so a one-shot restore lands short and any wait-then-
+        // scroll shows an intermediate position. Instead, run before every
+        // drawn frame: as the content grows, scroll to the bottom of the
+        // grown content in the same frame it is drawn — the bottom stays
+        // aligned and the user never sees an intermediate position. Done
+        // once the content reaches the saved height. If it never does (e.g.
+        // less data), fall back after a second.
+        val container = binding.container
+        restoreTimeout = Runnable {
+            container.viewTreeObserver.removeOnPreDrawListener(restorePreDrawListener)
+            restorePreDrawListener = null
+            restoreTimeout = null
+            isRestoring = false
+            val maxScroll = container.computeVerticalScrollRange() - container.height
+            val target = minOf(savedScrollY, maxScroll)
+            if (target > container.scrollY) {
+                Log.i("HomeScroll", "restore fallback: scrollY ${container.scrollY} -> $target")
+                container.scrollTo(0, target)
+            }
+        }
+        restorePreDrawListener = ViewTreeObserver.OnPreDrawListener {
+            val maxScroll = container.computeVerticalScrollRange() - container.height
+            val target = minOf(savedScrollY, maxScroll)
+            if (target > container.scrollY) {
+                Log.i(
+                    "HomeScroll",
+                    "follow: scrollY ${container.scrollY} -> $target (maxScroll=$maxScroll, saved=$savedScrollY)"
+                )
+                container.scrollTo(0, target)
+            }
+            if (maxScroll >= savedScrollY) {
+                container.viewTreeObserver.removeOnPreDrawListener(restorePreDrawListener)
+                container.removeCallbacks(restoreTimeout)
+                restorePreDrawListener = null
+                restoreTimeout = null
+                isRestoring = false
+                Log.i(
+                    "HomeScroll",
+                    "restore done: scrollY=${container.scrollY} maxScroll=$maxScroll saved=$savedScrollY"
+                )
+            }
+            true
+        }
+        container.viewTreeObserver.addOnPreDrawListener(restorePreDrawListener)
+        container.postDelayed(restoreTimeout, 1000)
+    }
+
+    private fun cancelScrollRestore() {
+        Log.i(
+            "HomeScroll",
+            "cancelScrollRestore (savedScrollY=$savedScrollY, scrollY=${binding.container.scrollY})"
+        )
+        restoreTimeout?.let { binding.container.removeCallbacks(it) }
+        restoreTimeout = null
+        restorePreDrawListener?.let {
+            binding.container.viewTreeObserver.removeOnPreDrawListener(it)
+        }
+        restorePreDrawListener = null
+        isRestoring = false
+        savedScrollY = 0
+    }
+
     override fun onDestroyView() {
+        // Navigation detaches (not just hides) this fragment when navigating
+        // away, which destroys the view — onPause never fires. Save the
+        // scroll position here, before the view is torn down, so re-entering
+        // the screen can restore it.
+        Log.i("HomeScroll", "onDestroyView saving scrollY=${binding.container.scrollY}")
+        savedScrollY = binding.container.scrollY
+        restoreTimeout?.let { binding.container.removeCallbacks(it) }
+        restoreTimeout = null
+        restorePreDrawListener?.let {
+            binding.container.viewTreeObserver.removeOnPreDrawListener(it)
+        }
+        restorePreDrawListener = null
+        isRestoring = false
         super.onDestroyView()
         homeAdapter?.unregisterAdapterDataObserver(adapterDataObserver)
         binding.recyclerView.adapter = null

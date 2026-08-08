@@ -495,15 +495,7 @@
     <string name="faq">Preguntas frecuentes</string>
     <string name="licenses">Licencias</string>
     <string name="author">Autor</string>
-    <string name="mardous_summary">Desarrollador principal</string>
-    <string name="contributors">Colaboradores</string>
-    <string name="translators_title">Traductores</string>
-    <string name="translators_summary">Gracias a quienes hacen que Booming Music esté disponible en muchos idiomas.</string>
-    <string name="view_profile_on_github">Ver perfil en GitHub</string>
-    <string name="write_an_email">Escribe un email</string>
     <string name="support_development">Apoyar desarrollo</string>
-    <string name="help_with_translations">Ayuda con traducciones</string>
-    <string name="help_with_translations_summary">Puedes contribuir al proyecto ayudando a traducir Booming Music a otros idiomas.</string>
     <string name="report_bugs">Reportar errores</string>
     <string name="report_bugs_summary">Informar de defectos o solicitar funcionalidades nuevas.</string>
     <string name="share_app">Compartir esta aplicación</string>
@@ -850,9 +842,6 @@
     <string name="lyrics_center_horizontally_summary">Alinea cada renglón de la letra al centro horizontal de la pantalla.</string>
     <string name="images_title">Imágenes</string>
     <string name="lastfm_title">Last.fm</string>
-    <string name="support_my_work">Apoyar mi labor</string>
-    <string name="telegram_community">Comunidad en Telegram</string>
-    <string name="telegram_community_summary">Únase a nuestra comunidad en Telegram para permanecer al tanto de las novedades.</string>
     <string name="github">GitHub</string>
     <string name="lastfm_login_toggle_password_visibility">Alternar visibilidad de contraseña</string>
     <string name="lastfm_login_username">Nombre de usuario</string>
@@ -963,6 +952,4 @@
     <string name="lyrics_resume_on_seek_summary">Reanudar automáticamente la reproducción al pulsar en una línea.</string>
     <string name="app_version_x">Versión %s</string>
     <string name="app_description">Diseño moderno. Sonido puro. Completamente suyo.</string>
-    <string name="more_contributors_title">Más colaboradores</string>
-    <string name="more_contributors_summary">Puedes consultar la lista completa de colaboradores en GitHub.</string>
 </resources>

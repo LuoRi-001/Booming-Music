@@ -71,6 +71,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.time.DayOfWeek
@@ -339,31 +340,114 @@ class LibraryViewModel(
 
     fun playCountSongsFlow() = repository.playCountSongsFlow()
 
-    fun listeningStatsRanking(range: StatsTimeRange): LiveData<List<PlayCountEntity>> =
-        repository.rankingSince(cutoffForRange(range)).asLiveData()
+    // Cached stats queries: switching the time range emits the last known
+    // data for the range immediately, so the screen doesn't flash an empty
+    // state (or collapse the layout) while the fresh query runs.
+    private val rankingCache = mutableMapOf<StatsTimeRange, List<PlayCountEntity>>()
+    private val timelineCache = mutableMapOf<StatsTimeRange, List<TimelineBar>>()
+    private val durationCache = mutableMapOf<StatsTimeRange, Long>()
 
-    fun getTimelineBars(range: StatsTimeRange): LiveData<List<TimelineBar>> = liveData(IO) {
-        val now = LocalDate.now()
-        val zoneId = ZoneId.systemDefault()
-        val entries = repository.getPlaybackDataSince(cutoffForRange(range))
-        val bars = computeTimelineBars(entries, range, now, zoneId)
-        emit(bars)
+    // Scroll position of the listening stats screen, kept in this activity-
+    // scoped ViewModel so it survives fragment recreation when leaving and
+    // re-entering the screen.
+    var statsScrollIndex: Int = 0
+        private set
+    var statsScrollOffset: Int = 0
+        private set
+
+    fun saveStatsScrollPosition(index: Int, offset: Int) {
+        statsScrollIndex = index
+        statsScrollOffset = offset
     }
 
-    fun totalDurationForToday(): LiveData<Long> =
-        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.TODAY)).asLiveData()
+    // Last measured height (px) of the listening stats card on the home
+    // screen. Used as a placeholder height when the card is recreated, so it
+    // occupies its full height from the first frame — the home screen's
+    // scroll restore then never sees a partially rendered card.
+    var statsCardHeightPx: Int = 0
 
-    fun totalDurationForThisWeek(): LiveData<Long> =
-        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.WEEK)).asLiveData()
+    fun listeningStatsRanking(range: StatsTimeRange): LiveData<List<PlayCountEntity>> {
+        val cached = rankingCache[range]
+        return if (cached != null) {
+            // Synchronously emit the cached value on the main thread so a
+            // fresh composition renders the full card (incl. the top-3 block)
+            // on its first frame. A liveData(IO) cold start goes through the
+            // IO dispatcher queue and can take hundreds of ms, which delays
+            // the card's final height and breaks the home screen's scroll
+            // restore. The async refresh below keeps the value live (e.g. on
+            // the stats screen while listening).
+            liveData {
+                emit(cached)
+                repository.rankingSince(cutoffForRange(range)).collect { fresh ->
+                    rankingCache[range] = fresh
+                    emit(fresh)
+                }
+            }
+        } else {
+            liveData(IO) {
+                repository.rankingSince(cutoffForRange(range)).collect { fresh ->
+                    rankingCache[range] = fresh
+                    emit(fresh)
+                }
+            }
+        }
+    }
 
-    fun totalDurationForThisMonth(): LiveData<Long> =
-        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.MONTH)).asLiveData()
+    fun getTimelineBars(range: StatsTimeRange): LiveData<List<TimelineBar>> {
+        val cached = timelineCache[range]
+        return if (cached != null) {
+            liveData {
+                emit(cached)
+                val bars = withContext(IO) {
+                    val now = LocalDate.now()
+                    val zoneId = ZoneId.systemDefault()
+                    val entries = repository.getPlaybackDataSince(cutoffForRange(range))
+                    computeTimelineBars(entries, range, now, zoneId)
+                }
+                timelineCache[range] = bars
+                emit(bars)
+            }
+        } else {
+            liveData(IO) {
+                val now = LocalDate.now()
+                val zoneId = ZoneId.systemDefault()
+                val entries = repository.getPlaybackDataSince(cutoffForRange(range))
+                val bars = computeTimelineBars(entries, range, now, zoneId)
+                timelineCache[range] = bars
+                emit(bars)
+            }
+        }
+    }
 
-    fun totalDurationForThisYear(): LiveData<Long> =
-        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.YEAR)).asLiveData()
+    fun totalDurationFor(range: StatsTimeRange): LiveData<Long> {
+        val cached = durationCache[range]
+        return if (cached != null) {
+            liveData {
+                emit(cached)
+                repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
+                    durationCache[range] = fresh
+                    emit(fresh)
+                }
+            }
+        } else {
+            liveData(IO) {
+                repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
+                    durationCache[range] = fresh
+                    emit(fresh)
+                }
+            }
+        }
+    }
 
-    fun totalDurationAllTime(): LiveData<Long> =
-        repository.totalDurationSinceFlow(cutoffForRange(StatsTimeRange.ALL)).asLiveData()
+    fun totalDurationForToday(): LiveData<Long> = totalDurationFor(StatsTimeRange.TODAY)
+
+    fun totalDurationForThisWeek(): LiveData<Long> = totalDurationFor(StatsTimeRange.WEEK)
+
+    fun totalDurationForThisMonth(): LiveData<Long> = totalDurationFor(StatsTimeRange.MONTH)
+
+    fun totalDurationForThisYear(): LiveData<Long> = totalDurationFor(StatsTimeRange.YEAR)
+
+    fun totalDurationAllTime(): LiveData<Long> = totalDurationFor(StatsTimeRange.ALL)
 
     private fun cutoffForRange(range: StatsTimeRange): Long {
         val now = LocalDate.now()

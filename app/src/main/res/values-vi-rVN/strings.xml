@@ -484,15 +484,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Các giấy phép</string>
     <string name="author">Tác giả</string>
-    <string name="mardous_summary">Nhà phát triển chính</string>
-    <string name="contributors">Người đóng góp</string>
-    <string name="translators_title">Người dịch</string>
-    <string name="translators_summary">Cảm ơn những người đã giúp Booming Music hỗ trợ nhiều ngôn ngữ.</string>
-    <string name="view_profile_on_github">Xem hồ sơ trên GitHub</string>
-    <string name="write_an_email">Viết một email</string>
     <string name="support_development">Hỗ trợ phát triển</string>
-    <string name="help_with_translations">Hỗ trợ dịch thuật</string>
-    <string name="help_with_translations_summary">Bạn có thể đóng góp cho dự án bằng cách hỗ trợ dịch thuật Booming Music sang các ngôn ngữ khác.</string>
     <string name="report_bugs">Báo cáo lỗi</string>
     <string name="report_bugs_summary">Báo cáo lỗi hoặc yêu cầu tính năng mới.</string>
     <string name="share_app">Chia sẻ ứng dụng này</string>
@@ -846,9 +838,6 @@
     <string name="error_lastfm_generic">Đã xảy ra lỗi với Last.fm. Vui lòng thử lại.</string>
     <string name="error_network_timeout">Kết nối bị gián đoạn. Vui lòng kiểm tra kết nối internet và thử lại.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Cộng đồng Telegram</string>
-    <string name="telegram_community_summary">Tham gia vào cộng động Telegram của chúng tôi để cập nhật những cập nhật và thông tin mới nhất.</string>
-    <string name="support_my_work">Ủng hộ chúng tôi</string>
     <string name="network_title">Mạng</string>
     <string name="network_summary">Quản lý các tính năng internet như tích hợp Last.fm, các nhà cung cấp lời bài hát và siêu dữ liệu.</string>
     <string name="widgets_header">Những tiện ích của ứng dụng</string>

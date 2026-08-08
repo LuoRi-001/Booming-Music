@@ -500,15 +500,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">רשיונות</string>
     <string name="author">יוצר</string>
-    <string name="mardous_summary">מפתח ראשי</string>
-    <string name="contributors">תורמים</string>
-    <string name="translators_title">מתרגמים</string>
-    <string name="translators_summary">תודה לאלו שעוזרים להפוך את Booming Music לזמין בשפות רבות.</string>
-    <string name="view_profile_on_github">צפה בפרופיל ב-GitHub</string>
-    <string name="write_an_email">כתוב אימייל</string>
     <string name="support_development">תמיכה בפיתוח</string>
-    <string name="help_with_translations">עזרה בתרגומים</string>
-    <string name="help_with_translations_summary">תרגום Booming Music לשפות אחרות הוא דרך נהדרת לתרום למיזם.</string>
     <string name="report_bugs">דווח על באגים</string>
     <string name="report_bugs_summary">דווח על באגים או בקש פיצ\'רים חדשים.</string>
     <string name="share_app">שיתוף יישומון זה</string>

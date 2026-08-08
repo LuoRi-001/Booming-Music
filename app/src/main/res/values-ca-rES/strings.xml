@@ -500,15 +500,7 @@
     <string name="faq">Preguntes freqüents</string>
     <string name="licenses">Llicències</string>
     <string name="author">Autor</string>
-    <string name="mardous_summary">Desenvolupador principal</string>
-    <string name="contributors">Col·laboradors</string>
-    <string name="translators_title">Traductors</string>
-    <string name="translators_summary">Gràcies a tothom que fa possible que Booming Music estigui disponible en tants idiomes.</string>
-    <string name="view_profile_on_github">Mostra el perfil a Github</string>
-    <string name="write_an_email">Escriviu un correu electrònic</string>
     <string name="support_development">Suport al desenvolupament</string>
-    <string name="help_with_translations">Ajuda amb les traduccions</string>
-    <string name="help_with_translations_summary">Podeu contribuir al projecte ajudant a traduir Booming Music a altres idiomes.</string>
     <string name="report_bugs">Informa d\'un error</string>
     <string name="report_bugs_summary">Informeu d\'errors o proposeu noves funcions.</string>
     <string name="share_app">Comparteix aquesta aplicació</string>
@@ -845,7 +837,6 @@
     <string name="network_title">Xarxa</string>
     <string name="images_title">Imatges</string>
     <string name="lastfm_title">Last.fm</string>
-    <string name="telegram_community">Comunitat al Telegram</string>
     <string name="network_features_title">Activa les funcionalitats de xarxa</string>
     <string name="use_lrclib_provider_title">Usa el proveïdor LRCLib</string>
     <string name="use_betterlyrics_provider_title">Usa el proveïdor BetterLyrics</string>
@@ -889,8 +880,6 @@
     <string name="error_listenbrainz_generic">Hi ha hagut un error amb ListenBrainz.</string>
     <string name="error_listenbrainz_invalid_token">Clau de ListenBrainz invàlida.</string>
     <string name="sleep_timer_x_secs">%d segons</string>
-    <string name="telegram_community_summary">Uniu-vos a la nostra comunitat de Telegram per estar al dia d\'actualitzacions i notícies.</string>
-    <string name="support_my_work">Dona\'m suport</string>
     <string name="network_summary">Gestioneu funcions d\'internet com ara la integració de Last.fm, els proveïdors de lletres i descàrregues de metadades.</string>
     <string name="widgets_header">Widgets de l\'aplicació</string>
     <string name="widget_small_layout_style_title">Aparença minimalista</string>

@@ -508,15 +508,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licence</string>
     <string name="author">Autor</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Přispěvatelé</string>
-    <string name="translators_title">Překladatelé</string>
-    <string name="translators_summary">Díky těm, kteří zpřístupňují Booming Music v mnoha jazycích.</string>
-    <string name="view_profile_on_github">Zobrazit profil na GitHub</string>
-    <string name="write_an_email">Napsat e-mail</string>
     <string name="support_development">Podpořte vývoj</string>
-    <string name="help_with_translations">Pomoc s překlady</string>
-    <string name="help_with_translations_summary">Můžete přispět k projektu tím, že pomůžete přeložit hudbu Booming do jiných jazyků.</string>
     <string name="report_bugs">Nahlásit chyby</string>
     <string name="report_bugs_summary">Nahlásit chyby nebo požádat o nové funkce.</string>
     <string name="share_app">Sdílet tuto aplikaci</string>

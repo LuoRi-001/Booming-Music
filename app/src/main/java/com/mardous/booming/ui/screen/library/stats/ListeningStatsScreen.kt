@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -36,11 +37,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,19 +73,43 @@ fun ListeningStatsScreen(
     onBackClick: () -> Unit
 ) {
     var selectedRange by rememberSaveable { mutableStateOf(StatsTimeRange.WEEK) }
-    val ranking by libraryViewModel.listeningStatsRanking(selectedRange).observeAsState(emptyList())
-    val timelineBars by libraryViewModel.getTimelineBars(selectedRange).observeAsState(emptyList())
-
-    // Get the total duration for the selected range
-    val selectedDuration = when (selectedRange) {
-        StatsTimeRange.TODAY -> libraryViewModel.totalDurationForToday().observeAsState(0L)
-        StatsTimeRange.WEEK -> libraryViewModel.totalDurationForThisWeek().observeAsState(0L)
-        StatsTimeRange.MONTH -> libraryViewModel.totalDurationForThisMonth().observeAsState(0L)
-        StatsTimeRange.YEAR -> libraryViewModel.totalDurationForThisYear().observeAsState(0L)
-        StatsTimeRange.ALL -> libraryViewModel.totalDurationAllTime().observeAsState(0L)
-    }
+    // remember(selectedRange): the LiveData is only re-created when the range
+    // changes. Recreating it on every recomposition (e.g. while the ranking
+    // progress bars animate) caused a new query per frame and a flash of the
+    // empty state between LiveData swaps.
+    val ranking by remember(selectedRange) {
+        libraryViewModel.listeningStatsRanking(selectedRange)
+    }.observeAsState(emptyList())
+    val timelineBars by remember(selectedRange) {
+        libraryViewModel.getTimelineBars(selectedRange)
+    }.observeAsState(emptyList())
+    val selectedDuration by remember(selectedRange) {
+        libraryViewModel.totalDurationFor(selectedRange)
+    }.observeAsState(0L)
 
     val totalPlays = ranking.sumOf { it.playCount }
+
+    // Restore the scroll position saved in the activity-scoped ViewModel once
+    // the ranking data arrives, and keep it updated while scrolling, so
+    // leaving and re-entering the screen continues where the user was.
+    val listState = rememberLazyListState()
+    var restoredScroll by remember { mutableStateOf(false) }
+    LaunchedEffect(ranking, listState) {
+        if (!restoredScroll && ranking.isNotEmpty()) {
+            restoredScroll = true
+            listState.scrollToItem(
+                index = libraryViewModel.statsScrollIndex,
+                scrollOffset = libraryViewModel.statsScrollOffset
+            )
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.distinctUntilChanged().collect { (index, offset) ->
+            libraryViewModel.saveStatsScrollPosition(index, offset)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -106,6 +135,7 @@ fun ListeningStatsScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -126,7 +156,7 @@ fun ListeningStatsScreen(
             // Hero section - 2 cards
             item {
                 StatsHeroSection(
-                    durationMs = selectedDuration.value,
+                    durationMs = selectedDuration,
                     playCount = totalPlays
                 )
             }

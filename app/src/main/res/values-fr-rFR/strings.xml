@@ -500,15 +500,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">Licences</string>
     <string name="author">Auteur</string>
-    <string name="mardous_summary">Développeur principal</string>
-    <string name="contributors">Contributeurs</string>
-    <string name="translators_title">Traducteurs</string>
-    <string name="translators_summary">Merci à ceux qui rendent Booming Music disponible dans de nombreuses langues.</string>
-    <string name="view_profile_on_github">Voir le profil sur GitHub</string>
-    <string name="write_an_email">Rédiger un courriel</string>
     <string name="support_development">Soutenir le développement</string>
-    <string name="help_with_translations">Aide à la traduction</string>
-    <string name="help_with_translations_summary">Vous pouvez contribuer au projet en aidant à traduire Booming Music dans d\'autres langues.</string>
     <string name="report_bugs">Signaler des bugs</string>
     <string name="report_bugs_summary">Signaler des bugs ou demander de nouvelles fonctionnalités.</string>
     <string name="share_app">Partager cette application</string>
@@ -840,9 +832,6 @@
     <string name="error_lastfm_generic">Une erreur inattendue s\'est produite avec Last.fm. Veuillez réessayer.</string>
     <string name="error_network_timeout">Le délai de connexion a expiré. Vérifiez votre connexion Internet et réessayez.</string>
     <string name="github">GitHub</string>
-    <string name="telegram_community">Communauté Telegram</string>
-    <string name="telegram_community_summary">Rejoignez notre communauté Telegram pour rester informé des nouvelles sorties et de l\'actualité.</string>
-    <string name="support_my_work">Soutenez mon travail</string>
     <string name="network_title">Réseau</string>
     <string name="network_summary">Gérer les fonctionnalités Internet telles que l\'intégration de Last.fm, les fournisseurs de paroles et le téléchargement de métadonnées.</string>
     <string name="images_title">Images</string>
@@ -963,6 +952,4 @@
     <string name="lyrics_resume_on_seek_summary">Reprendre automatiquement la lecture lorsque l\'on clique sur une ligne.</string>
     <string name="app_version_x">Version %s</string>
     <string name="app_description">Un design moderne. Un son pur. Entièrement à vous.</string>
-    <string name="more_contributors_title">D\'autres contributeurs</string>
-    <string name="more_contributors_summary">Vous pouvez consulter la liste complète des contributeurs sur GitHub.</string>
 </resources>

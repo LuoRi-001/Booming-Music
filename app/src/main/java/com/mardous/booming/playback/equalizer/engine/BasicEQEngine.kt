@@ -19,6 +19,9 @@ class BasicEQEngine(sessionId: Int) : EQEngine(sessionId) {
     override val isMBCSupported: Boolean = false
     override val isLimiterSupported: Boolean = false
 
+    override val isOperational: Boolean
+        get() = equalizer != null
+
     override val bandCapabilities: EqBandCapabilities
         get() = execOpCatching(equalizer, EqBandCapabilities.Empty) { eq ->
             val bandCount = eq.numberOfBands.toInt()

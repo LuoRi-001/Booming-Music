@@ -25,14 +25,10 @@ object Constants {
     const val GITHUB_URL = BuildConfig.GITHUB_URL
     const val RELEASES_LINK = BuildConfig.RELEASES_LINK
     const val ISSUE_TRACKER_LINK = BuildConfig.ISSUE_TRACKER_LINK
-    const val COMMUNITY_LINK = BuildConfig.COMMUNITY_LINK
     const val FAQ_LINK = BuildConfig.FAQ_LINK
 
     // External Links
     const val DOWNLOAD_URL = BuildConfig.DOWNLOAD_URL
-    const val TELEGRAM_COMMUNITY_LINK = BuildConfig.TELEGRAM_COMMUNITY_LINK
-    const val DONATION_LINK = BuildConfig.DONATION_LINK
-    const val TRANSLATIONS_LINK = BuildConfig.TRANSLATIONS_LINK
 
     // API URLs
     const val GITHUB_API_URL = BuildConfig.GITHUB_API_URL
@@ -49,9 +45,6 @@ object Constants {
     const val WIKIPEDIA_SEARCH_URL = BuildConfig.WIKIPEDIA_SEARCH_URL
     const val WIKIPEDIA_LOCALIZED_SEARCH_URL = BuildConfig.WIKIPEDIA_LOCALIZED_SEARCH_URL
     const val YOUTUBE_SEARCH_URL = BuildConfig.YOUTUBE_SEARCH_URL
-
-    // Support Email
-    const val SUPPORT_EMAIL = BuildConfig.SUPPORT_EMAIL
 
     // App basics
     const val USER_AGENT = "BoomingMusic/${BuildConfig.VERSION_NAME} ($GITHUB_URL)"

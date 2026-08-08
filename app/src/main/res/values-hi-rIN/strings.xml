@@ -492,15 +492,7 @@
     <string name="faq">FAQ</string>
     <string name="licenses">लायसेंसेज़</string>
     <string name="author">लेखक</string>
-    <string name="mardous_summary">Lead Developer</string>
-    <string name="contributors">Contributors</string>
-    <string name="translators_title">अनुवादक</string>
-    <string name="translators_summary">उन लोगों का धन्यवाद जिन्होंने बूमिंग म्यूजिक को कई भाषाओं में उपलब्ध कराया।</string>
-    <string name="view_profile_on_github">GitHub पर प्रोफ़ाइल देखें</string>
-    <string name="write_an_email">एक ईमेल लिखें</string>
     <string name="support_development">विकास का समर्थन करें</string>
-    <string name="help_with_translations">अनुवाद में मदद करें</string>
-    <string name="help_with_translations_summary">आप अन्य भाषाओं में बूमिंग म्यूजिक का अनुवाद करने में मदद करके परियोजना में योगदान कर सकते हैं।</string>
     <string name="report_bugs">बग की रिपोर्ट करें</string>
     <string name="report_bugs_summary">बग रिपोर्ट करें या नए फीचर्स का अनुरोध करें।</string>
     <string name="share_app">इस ऐप को शेयर करो</string>

@@ -2,7 +2,7 @@
 <resources>
 	<string name="app_name" translatable="false">Booming Music</string>
 
-	<string name="mardous" translatable="false">Christians Martínez A.</string>
+	<string name="luori" translatable="false">LuoRi-001</string>
 
     <string name="instrumental_identifiers" translatable="false">(Instrumental)</string>
 

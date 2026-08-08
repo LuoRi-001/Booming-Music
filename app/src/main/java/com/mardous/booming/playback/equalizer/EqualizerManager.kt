@@ -89,6 +89,16 @@ class EqualizerManager(
     private val eqScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var eqEngine: EQEngine? = null
 
+    /**
+     * True while the engine is attached to an audio session that hasn't
+     * been confirmed live yet (no AudioTrack has been created on it yet).
+     * Effects attached to a session that doesn't exist yet can silently
+     * never process audio on some devices, so the engine is recreated once
+     * the session is confirmed (onAudioSessionIdChanged / playback start).
+     */
+    @Volatile
+    private var awaitingSessionConfirm = false
+
     val eqState =
         combine(
             audioOutputObserver.bitPerfectState,
@@ -316,6 +326,16 @@ class EqualizerManager(
                         sessionId = eqSession.id,
                         bandCount = newState.preferredBandCount
                     )
+                    // Created (or failed to create) before the session was
+                    // confirmed live by a real AudioTrack — retry/recreate
+                    // once it is (see setSessionId/confirmSession).
+                    awaitingSessionConfirm = true
+                    // Configure and enable the engine immediately (while the
+                    // session is silent) so playback start doesn't race with
+                    // effect-chain setup.
+                    if (newState.isUsable) {
+                        applyChangesToEngine(engine = eqEngine, state = newState)
+                    }
                 } else if (eqEngine != null && newState.isUsable && !isDisabled) {
                     // Engine already exists but may have been initialized with stale
                     // state (e.g., Unspecified before DataStore loaded). Re-apply the
@@ -382,13 +402,40 @@ class EqualizerManager(
             context.eqDataStore.edit { prefs ->
                 val eqConfigVersion = prefs[Keys.EQ_CONFIG_VERSION] ?: 0
                 if (eqConfigVersion < CURRENT_EQ_CONFIG_VERSION) {
-                    // Migrate: force Basic (safe default) and rebuild presets.
-                    // v0→v1: DynamicsProcessing was previously Auto default on
-                    //   API≥P, causing static/noise on Qualcomm ADSP devices.
-                    prefs[Keys.EQ_ENGINE_MODE] = EqEngineMode.Basic.ordinal
+                    // v2: re-enable DynamicsProcessing (5/10/15/32 bands) as
+                    // the default — the engine no longer enables MBC/limiter
+                    // at creation, which was the actual source of the
+                    // static/noise on some HALs. Respect an explicitly
+                    // requested engine mode (e.g. from resetConfigurationWithNewEngineMode).
+                    val migratedMode =
+                        if (EqEngineMode.isSwitchingSupported()) engineMode
+                        else EqEngineMode.Basic
+                    prefs[Keys.EQ_ENGINE_MODE] = migratedMode.ordinal
+                    prefs[Keys.EQ_BAND_COUNT] = migratedMode.defaultBandCount
                     prefs[Keys.PRESETS] = Json.encodeToString(
-                        getPresetsByBandCount(EqEngineMode.Basic.defaultBandCount)
+                        getPresetsByBandCount(migratedMode.defaultBandCount)
                     )
+                    // v3: rewrite the active profile to match the new band
+                    // count — engines silently ignore profiles with a
+                    // mismatched band count, leaving the EQ inaudible.
+                    listOf(Keys.PRESET, Keys.CUSTOM_PRESET).forEach { key ->
+                        prefs[key]?.let { json ->
+                            val profile = runCatching {
+                                Json.decodeFromString<EqProfile>(json)
+                            }.getOrNull()
+                            if (profile != null && profile.isValid &&
+                                profile.numberOfBands != migratedMode.defaultBandCount
+                            ) {
+                                prefs[key] = Json.encodeToString(
+                                    profile.copy(
+                                        levels = FloatArray(migratedMode.defaultBandCount) { i ->
+                                            profile.levels.getOrElse(i) { 0f }
+                                        }
+                                    )
+                                )
+                            }
+                        }
+                    }
                     prefs[Keys.EQ_INITIALIZED] = true
                     prefs[Keys.EQ_CONFIG_VERSION] = CURRENT_EQ_CONFIG_VERSION
                 } else if (prefs[Keys.EQ_INITIALIZED] != true) {
@@ -421,6 +468,7 @@ class EqualizerManager(
         setSession(EqSession(SessionType.Internal, NO_SESSION_ID, false))
         eqEngine?.release()
         eqEngine = null
+        awaitingSessionConfirm = false
     }
 
     fun isProfileNameAvailable(profileName: String): Boolean {
@@ -654,6 +702,14 @@ class EqualizerManager(
     }
 
     fun setSessionId(audioSessionId: Int, eqState: EqState = this.eqState.value) {
+        // Called from onAudioSessionIdChanged, when Media3 reports the
+        // session of a real AudioTrack. When no engine exists yet, create
+        // it right away — the session is live by definition. When the
+        // engine was speculatively created before that confirmation,
+        // recreate it so effects attach to the live session.
+        val engine = eqEngine
+        val confirmNow = engine == null ||
+            (awaitingSessionConfirm && engine.sessionId == audioSessionId)
         setSession(
             eqSession.copy(
                 id = audioSessionId,
@@ -662,8 +718,20 @@ class EqualizerManager(
                 } else {
                     SessionType.External
                 }
-            )
+            ),
+            eqState,
+            forceRecreate = confirmNow
         )
+    }
+
+    /**
+     * Called when playback starts — the audio session is now (or is about
+     * to be) backed by a real AudioTrack. Recreates the engine if it was
+     * created before the session existed (see setSessionId).
+     */
+    fun confirmSession() {
+        val confirmNow = awaitingSessionConfirm
+        setSession(eqSession.copy(), eqState.value, forceRecreate = confirmNow)
     }
 
     fun setSessionIsActive(isActive: Boolean, eqState: EqState = this.eqState.value) {
@@ -680,18 +748,38 @@ class EqualizerManager(
         )
     }
 
-    private fun setSession(newSession: EqSession, eqState: EqState = this.eqState.value) {
+    private fun setSession(
+        newSession: EqSession,
+        eqState: EqState = this.eqState.value,
+        forceRecreate: Boolean = false
+    ) {
         val oldSession = this.eqSession
-        if (newSession == oldSession)
+        // Rebuild the engine when it exists but its effects failed to
+        // attach (e.g. the audio session didn't exist yet) — now that the
+        // session is live, recreation should succeed. forceRecreate also
+        // bypasses the shortcut: the session was just confirmed live by
+        // Media3, and a speculatively created engine must be rebuilt to
+        // attach to it.
+        if (newSession == oldSession && !forceRecreate && eqEngine?.isOperational != false)
             return
 
         this.eqSession = newSession
         when (oldSession.type) {
             SessionType.Internal -> {
-                eqEngine?.setEnabled(false)
+                // Keep the engine untouched when the session just flips
+                // active (play/pause) — disabling and re-enabling it mid-
+                // playback causes an audible transient on some devices.
+                // Real session changes (new id or leaving Internal) still
+                // tear the chain down.
+                val staysOnSameSession =
+                    newSession.type == SessionType.Internal && newSession.id == oldSession.id
+                if (!staysOnSameSession) {
+                    eqEngine?.setEnabled(false)
+                }
                 if (eqState.isDisabledByReason) {
                     eqEngine?.release()
                     eqEngine = null
+                    awaitingSessionConfirm = false
                 }
             }
 
@@ -706,15 +794,32 @@ class EqualizerManager(
             }
         }
 
-        if (!eqState.isDisabledByReason && newSession.active && newSession.id != NO_SESSION_ID) {
+        if (!eqState.isDisabledByReason && eqState.supported && newSession.id != NO_SESSION_ID) {
             when (newSession.type) {
                 SessionType.Internal -> {
-                    if (newSession.id != this.eqEngine?.sessionId) {
+                    if (newSession.id != this.eqEngine?.sessionId ||
+                        eqEngine?.isOperational == false ||
+                        forceRecreate
+                    ) {
                         eqEngine?.release()
                         eqEngine = createEngine(
                             mode = eqState.engineMode,
                             sessionId = newSession.id,
                             bandCount = eqState.preferredBandCount
+                        )
+                        // A forceRecreate runs on a session confirmed live
+                        // by Media3 (onAudioSessionIdChanged) or by playback
+                        // start, so the engine is now correctly attached.
+                        // A speculative creation (fixed session id assigned
+                        // before the AudioTrack existed) stays pending
+                        // confirmation and is recreated once the session is
+                        // live.
+                        awaitingSessionConfirm = !forceRecreate
+                        Log.i(
+                            TAG,
+                            "Engine (re)created: mode=${eqState.engineMode}, " +
+                                "session=${newSession.id}, bands=${eqState.preferredBandCount}, " +
+                                "operational=${eqEngine?.isOperational}, awaitingConfirm=$awaitingSessionConfirm"
                         )
                     }
                     // Always apply full config before enabling — createEngine() may
@@ -804,20 +909,40 @@ class EqualizerManager(
         if (eqState.value.preferredBandCount == bandCount)
             return false
 
+        val engine = eqEngine
         val bandCapabilities = this.bandCapabilities.value
-        if (bandCapabilities.hasMultipleBandConfigurations &&
-            bandCapabilities.isBandCountSupported(bandCount)) {
-            eqEngine?.let { engine ->
-                if (engine.setBandCount(bandCount)) {
-                    setEqualizerState(
-                        state = eqState.value.copy(preferredBandCount = bandCount),
-                        newProfile = profileAfterChange
-                    )
-                    return true
-                }
+        if (bandCapabilities.isBandCountSupported(bandCount)) {
+            if (engine?.setBandCount(bandCount) == true) {
+                setEqualizerState(
+                    state = eqState.value.copy(preferredBandCount = bandCount),
+                    newProfile = profileAfterChange
+                )
+                return true
             }
         }
+        // The current engine can't switch to this band count (Basic is
+        // fixed to the device's native bands) — switch to DynamicsProcessing,
+        // which supports 5/10/15/32 bands.
+        if (EqEngineMode.isSwitchingSupported() &&
+            eqState.value.engineMode != EqEngineMode.DynamicsProcessing &&
+            bandCount in DYNAMICS_PROCESSING_BAND_COUNTS
+        ) {
+            switchEngineMode(EqEngineMode.DynamicsProcessing, bandCount, profileAfterChange)
+            return true
+        }
         return false
+    }
+
+    private suspend fun switchEngineMode(mode: EqEngineMode, bandCount: Int, profile: EqProfile) {
+        eqEngine?.release()
+        eqEngine = null
+        awaitingSessionConfirm = false
+        setBandCapabilities(EqBandCapabilities.Empty)
+        context.eqDataStore.edit { prefs ->
+            prefs[Keys.EQ_ENGINE_MODE] = mode.ordinal
+            prefs[Keys.EQ_BAND_COUNT] = bandCount
+            prefs[Keys.PRESET] = Json.encodeToString(profile)
+        }
     }
 
     suspend fun setEnableBitPerfect(bitPerfect: Boolean) {
@@ -1053,8 +1178,17 @@ class EqualizerManager(
                     engine.setLimiterState(limiterState)
                 }
 
-                // Enable the engine last, after all parameters are set
-                engine.setEnabled(true)
+                // Enable the engine last, after all parameters are set.
+                // Skip enabling when the chain would process nothing (flat
+                // profile, no compressor/limiter) — attaching an idle DSP
+                // chain still causes a sharp transient on some devices
+                // (e.g. Redmi K80) when toggled during playback.
+                val needsDspProcessing = profile.levels.any { it != 0f } ||
+                    (engine.isMBCSupported && compressorState.enabled && state.proMode) ||
+                    (engine.isLimiterSupported && limiterState.enabled && state.proMode)
+                if (needsDspProcessing) {
+                    engine.setEnabled(true)
+                }
             } else {
                 engine.setEnabled(false)
                 engine.setVirtualizerState(VirtualizerState.Unspecified)
@@ -1079,6 +1213,7 @@ class EqualizerManager(
         }
         eqEngine?.release()
         eqEngine = null
+        awaitingSessionConfirm = false
         initializeEqualizer(newEngineMode)
     }
 
@@ -1143,8 +1278,13 @@ class EqualizerManager(
         private const val NO_SESSION_ID = 0
 
         // Bump this to force re-initialization of EQ config on next app start.
-        // 0 = initial, 1 = migrate from DynamicsProcessing (Auto default) to Basic.
-        private const val CURRENT_EQ_CONFIG_VERSION = 1
+        // 0 = initial, 1 = migrate from DynamicsProcessing (Auto default) to Basic,
+        // 2 = re-enable DynamicsProcessing (MBC/limiter now disabled at creation),
+        // 3 = rewrite the active profile to match the migrated band count.
+        private const val CURRENT_EQ_CONFIG_VERSION = 3
+
+        // Band counts the DynamicsProcessing engine can switch between.
+        private val DYNAMICS_PROCESSING_BAND_COUNTS = setOf(5, 10, 15, 32)
 
         const val MINIMUM_LOUDNESS_GAIN = 0f
         const val MAXIMUM_LOUDNESS_GAIN = 40f
