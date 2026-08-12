@@ -16,6 +16,14 @@ interface PlaybackEventDao {
     suspend fun insert(event: PlaybackEventEntity)
 
     /**
+     * Extends the duration of the playback event created at settlement
+     * time, so topping up listening time never adds a second row (which
+     * would inflate the plays count in rankings).
+     */
+    @Query("UPDATE PlaybackEventEntity SET duration_ms = :durationMs WHERE song_id = :songId AND time_played = :timePlayed")
+    suspend fun updateDuration(songId: Long, timePlayed: Long, durationMs: Long)
+
+    /**
      * Per-song aggregates within a time range. [RankingRow.plays] and
      * [RankingRow.durationMs] are the exact in-range values (unlike
      * [PlayCountEntity.playCount] which is a lifetime counter).

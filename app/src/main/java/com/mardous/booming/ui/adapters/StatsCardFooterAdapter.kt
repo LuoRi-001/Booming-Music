@@ -1,6 +1,5 @@
 package com.mardous.booming.ui.adapters
 
-import android.util.Log
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -31,6 +30,17 @@ class StatsCardFooterAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val composeView = ComposeView(parent.context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            // Paint the theme's background while Compose bootstraps so the
+            // card never flashes the window background during the first
+            // frame after re-entering the home screen.
+            val background = parent.context.obtainStyledAttributes(
+                intArrayOf(android.R.attr.colorBackground)
+            ).let { attrs ->
+                val color = attrs.getColor(0, 0xFF000000.toInt())
+                attrs.recycle()
+                color
+            }
+            setBackgroundColor(background)
             setContent {
                 ListeningStatsCard(
                     libraryViewModel = libraryViewModel,
@@ -43,7 +53,6 @@ class StatsCardFooterAdapter(
         // otherwise the card grows in stages and the home screen's scroll
         // restore shows a visible jump between the partial and full states.
         val cachedHeight = libraryViewModel.statsCardHeightPx
-        Log.i("HomeScroll", "stats card placeholder=$cachedHeight")
         if (cachedHeight > 0) {
             val params = composeView.layoutParams
             if (params != null) {
@@ -66,7 +75,6 @@ class StatsCardFooterAdapter(
                 val view = composeView
                 reportTask = Runnable {
                     libraryViewModel.statsCardHeightPx = view.height
-                    Log.i("HomeScroll", "stats card report height=${view.height}")
                 }
                 composeView.postDelayed(reportTask, 200)
             }

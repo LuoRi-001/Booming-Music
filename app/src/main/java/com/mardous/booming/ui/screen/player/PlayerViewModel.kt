@@ -171,8 +171,17 @@ class PlayerViewModel(
             { queue, position -> Pair(queue, position) }
                 .debounce(QUEUE_DEBOUNCE)
                 .onEach { (queue, position) ->
-                    _currentSongFlow.value = queue.getOrElse(position.current) { Song.emptySong }
-                    _nextSongFlow.value = queue.getOrElse(position.next) { Song.emptySong }
+                    // While the media controller reconnects after the
+                    // service is recreated in the background, the timeline
+                    // is briefly empty and the queue reports 0 items.
+                    // Falling back to Song.emptySong for those ~100ms
+                    // would blank the player UI (cover, title) for a
+                    // frame — keep the last known song until the queue is
+                    // restored.
+                    if (queue.isNotEmpty()) {
+                        _currentSongFlow.value = queue.getOrElse(position.current) { Song.emptySong }
+                        _nextSongFlow.value = queue.getOrElse(position.next) { Song.emptySong }
+                    }
                 }
                 .launchIn(viewModelScope)
 

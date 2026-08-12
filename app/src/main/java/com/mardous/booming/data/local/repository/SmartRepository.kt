@@ -37,6 +37,7 @@ import com.mardous.booming.data.model.Song
 import com.mardous.booming.util.Preferences
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -57,6 +58,8 @@ interface SmartRepository {
     suspend fun deleteSongsInPlayCount(songIds: List<Long>)
     suspend fun insetOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long = 0L)
     suspend fun insetOrIncrementSkipCount(song: Song)
+    suspend fun addPlayDuration(song: Song, timePlayed: Long, actualDurationMs: Long)
+    suspend fun updatePlaybackEventDuration(songId: Long, timePlayed: Long, durationMs: Long)
     suspend fun clearPlayCount()
     suspend fun historySongs(): List<Song>
     fun historySongsFlow(): Flow<List<Song>>
@@ -129,9 +132,14 @@ class RealSmartRepository(
     }
 
     override fun playCountSongsFlow(): Flow<List<Song>> =
-        playCountDao.playCountSongsFlow().map { playCountEntities ->
-            playCountEntities.fromPlayCountToSongs()
-        }
+        playCountDao.playCountSongsFlow()
+            // Defer reactive refreshes briefly so a play-count write
+            // landing during a page transition does not redraw the screen
+            // mid-animation.
+            .debounce(300)
+            .map { playCountEntities ->
+                playCountEntities.fromPlayCountToSongs()
+            }
 
     override suspend fun findSongsInPlayCount(songs: List<Song>): List<PlayCountEntity> {
         if (songs.isEmpty()) return emptyList()
@@ -160,6 +168,12 @@ class RealSmartRepository(
 
     override suspend fun insetOrIncrementSkipCount(song: Song) =
         playCountDao.insertOrIncrementSkipCount(song)
+
+    override suspend fun addPlayDuration(song: Song, timePlayed: Long, actualDurationMs: Long) =
+        playCountDao.addPlayDuration(song, timePlayed, actualDurationMs)
+
+    override suspend fun updatePlaybackEventDuration(songId: Long, timePlayed: Long, durationMs: Long) =
+        playbackEventDao.updateDuration(songId, timePlayed, durationMs)
 
     override suspend fun clearPlayCount() {
         playCountDao.clearPlayCount()
@@ -198,7 +212,7 @@ class RealSmartRepository(
     // timeline bars reflect plays within the selected range, not lifetime
     // counters.
     override fun totalDurationSinceFlow(cutoff: Long): Flow<Long> =
-        playbackEventDao.totalDurationSince(cutoff)
+        playbackEventDao.totalDurationSince(cutoff).debounce(300)
 
     override suspend fun getPlaybackDataSince(cutoff: Long): List<PlaybackTimeEntry> =
         playbackEventDao.playbackEventsSince(cutoff)
@@ -210,7 +224,9 @@ class RealSmartRepository(
      * aggregates.
      */
     override fun rankingSince(cutoff: Long): Flow<List<PlayCountEntity>> =
-        playbackEventDao.rankingSince(cutoff).map { rows ->
+        playbackEventDao.rankingSince(cutoff)
+            .debounce(300)
+            .map { rows ->
             if (rows.isEmpty()) {
                 emptyList()
             } else {

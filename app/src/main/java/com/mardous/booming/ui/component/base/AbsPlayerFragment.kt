@@ -265,14 +265,21 @@ abstract class AbsPlayerFragment(@LayoutRes layoutRes: Int) : Fragment(layoutRes
                 if (currentFragment(R.id.fragment_container) is EqualizerFragment) {
                     (activity as? MainActivity)?.collapsePanel()
                 } else {
-                    goToDestination(
-                        activity = requireActivity(),
-                        destinationId = R.id.nav_equalizer,
-                        args = EqualizerFragmentArgs.Builder()
-                            .setFromPlayer(true)
-                            .build()
-                            .toBundle()
-                    )
+                    // Navigate without collapsing the panel here: nav commits
+                    // asynchronously, so collapsing now would expose the home
+                    // screen for a frame before the equalizer's view lands.
+                    // The equalizer collapses the panel itself once attached,
+                    // so the panel reveal always shows the equalizer page.
+                    (activity as? MainActivity)?.apply {
+                        setBottomNavVisibility(false)
+                        findNavController(R.id.fragment_container).navigate(
+                            R.id.nav_equalizer,
+                            EqualizerFragmentArgs.Builder()
+                                .setFromPlayer(true)
+                                .build()
+                                .toBundle()
+                        )
+                    }
                 }
                 true
             }

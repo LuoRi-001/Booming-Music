@@ -161,6 +161,19 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         viewLifecycleOwner.launchAndRepeatWithViewLifecycle {
             playerViewModel.queueFlow.collect { queue ->
                 _binding?.viewPager?.let { pager ->
+                    // While the media controller reconnects after the
+                    // service is recreated in the background, the timeline
+                    // is briefly empty and the queue reports 0 items for
+                    // ~100ms. Swapping the adapter then would destroy the
+                    // cover fragments and blank the album art for a frame
+                    // — keep the current adapter until the queue is
+                    // restored. Also skip rebuilds that would not change
+                    // the pages (same song order, e.g. after reconnect).
+                    val adapter = pager.adapter
+                    if (queue.isEmpty() ||
+                        (adapter is AlbumCoverPagerAdapter && adapter.sameQueueAs(queue))) {
+                        return@collect
+                    }
                     pager.adapter = AlbumCoverPagerAdapter(parentFragmentManager, queue)
                     applyCurrentTransition()
                     pager.doOnPreDraw {
@@ -372,6 +385,14 @@ class AlbumCoverPagerAdapter(fm: FragmentManager, private val dataSet: List<Song
 
     private var currentPaletteReceiver: ColorReceiver? = null
     private var currentColorReceiverPosition = -1
+
+    /**
+     * True when [queue] holds the same songs in the same order, so a
+     * rebuild would not change any page.
+     */
+    fun sameQueueAs(queue: List<Song>): Boolean =
+        dataSet.size == queue.size &&
+            dataSet.indices.all { dataSet[it].id == queue[it].id }
 
     override fun getItem(position: Int): Fragment {
         return ImageFragment.newInstance(dataSet[position])

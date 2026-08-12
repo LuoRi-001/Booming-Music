@@ -1,7 +1,6 @@
 package com.mardous.booming.ui.screen.library.home
 
 import android.os.Bundle
-import android.util.Log
 import android.view.Menu
 import android.view.ViewTreeObserver
 import android.view.MenuInflater
@@ -110,13 +109,8 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     private var restoreTimeout: Runnable? = null
     private var restorePreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
 
-    private fun logScroll(msg: String) {
-        Log.i("HomeScroll", "$msg scrollY=${binding.container.scrollY}")
-    }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        Log.i("HomeScroll", "onViewCreated savedScrollY=$savedScrollY")
         val homeBinding = FragmentHomeBinding.bind(view)
         _binding = HomeBinding(homeBinding)
         // A touch on the screen while the auto-restore is pending cancels the
@@ -126,20 +120,9 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         // produce touch events, so they can't cancel it.
         binding.container.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN && isRestoring) {
-                Log.i(
-                    "HomeScroll",
-                    "touch cancels restore (savedScrollY=$savedScrollY, scrollY=${binding.container.scrollY})"
-                )
                 cancelScrollRestore()
             }
             false
-        }
-        // Trace every programmatic scroll (system view-state restore, layout
-        // clamping, our own restore) to see where the position lands.
-        binding.container.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
-            if (scrollY != oldScrollY) {
-                Log.i("HomeScroll", "scroll: $oldScrollY -> $scrollY (restoring=$isRestoring)")
-            }
         }
         binding.appBarLayout.setupStatusBarForeground()
         setSupportActionBar(binding.toolbar)
@@ -183,7 +166,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         }
         libraryViewModel.getMiniPlayerMargin().observe(viewLifecycleOwner) {
             val padding = it.getWithSpace(16.dp(resources), includeInsets = false)
-            Log.i("HomeScroll", "mini margin=${it.margin} -> padding bottom=$padding")
             binding.recyclerView.updatePadding(bottom = padding)
         }
         libraryViewModel.getSuggestions().apply {
@@ -197,7 +179,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 hasSuggestionsLoaded = true
                 if (result.data.isNotEmpty()) {
                     this@HomeFragment.statsFooterAdapter?.isVisible = true
-                    Log.i("HomeScroll", "suggestions ready, restoring savedScrollY=$savedScrollY")
                     restoreScrollPosition()
                 }
             }
@@ -292,7 +273,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     override fun onResume() {
         super.onResume()
-        logScroll("onResume")
         checkForMargins()
         // Refresh recommendations on return
         pickRandomSongs()
@@ -300,7 +280,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     override fun onPause() {
         super.onPause()
-        logScroll("onPause")
         binding.recyclerView.stopScroll()
     }
 
@@ -324,7 +303,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
             val maxScroll = container.computeVerticalScrollRange() - container.height
             val target = minOf(savedScrollY, maxScroll)
             if (target > container.scrollY) {
-                Log.i("HomeScroll", "restore fallback: scrollY ${container.scrollY} -> $target")
                 container.scrollTo(0, target)
             }
         }
@@ -332,10 +310,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
             val maxScroll = container.computeVerticalScrollRange() - container.height
             val target = minOf(savedScrollY, maxScroll)
             if (target > container.scrollY) {
-                Log.i(
-                    "HomeScroll",
-                    "follow: scrollY ${container.scrollY} -> $target (maxScroll=$maxScroll, saved=$savedScrollY)"
-                )
                 container.scrollTo(0, target)
             }
             if (maxScroll >= savedScrollY) {
@@ -344,10 +318,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 restorePreDrawListener = null
                 restoreTimeout = null
                 isRestoring = false
-                Log.i(
-                    "HomeScroll",
-                    "restore done: scrollY=${container.scrollY} maxScroll=$maxScroll saved=$savedScrollY"
-                )
             }
             true
         }
@@ -356,10 +326,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     }
 
     private fun cancelScrollRestore() {
-        Log.i(
-            "HomeScroll",
-            "cancelScrollRestore (savedScrollY=$savedScrollY, scrollY=${binding.container.scrollY})"
-        )
         restoreTimeout?.let { binding.container.removeCallbacks(it) }
         restoreTimeout = null
         restorePreDrawListener?.let {
@@ -375,7 +341,6 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         // away, which destroys the view — onPause never fires. Save the
         // scroll position here, before the view is torn down, so re-entering
         // the screen can restore it.
-        Log.i("HomeScroll", "onDestroyView saving scrollY=${binding.container.scrollY}")
         savedScrollY = binding.container.scrollY
         restoreTimeout?.let { binding.container.removeCallbacks(it) }
         restoreTimeout = null

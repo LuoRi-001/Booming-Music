@@ -43,7 +43,11 @@ import androidx.core.view.isVisible
 import androidx.core.view.size
 import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.commit
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.session.MediaController
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -141,6 +145,8 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
 
     private var playerFragment: AbsPlayerFragment? = null
     private var paletteColor: Int = 0
+    private var restoreExpanded = false
+    private var pendingHideJob: Job? = null
 
     var panelState: Int
         get() = bottomSheetBehavior.state
@@ -200,7 +206,32 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
                 val currentFragment = currentFragment(R.id.fragment_container)
                 if (currentFragment !is LyricsEditorFragment &&
                     currentFragment !is PlayInfoFragment) {
-                    hideBottomSheet(queue.isEmpty())
+                    // The queue can briefly report empty right after the
+                    // media session reconnects: the service is recreated in
+                    // the background and its timeline is empty until the
+                    // restore finishes. Hiding the sheet on that transient
+                    // dismisses the player just as the app comes back, so
+                    // only hide once the queue has stayed empty.
+                    if (queue.isEmpty()) {
+                        pendingHideJob?.cancel()
+                        pendingHideJob = lifecycleScope.launch {
+                            delay(QUEUE_EMPTY_HIDE_DELAY_MS)
+                            hideBottomSheet(true)
+                        }
+                    } else {
+                        pendingHideJob?.cancel()
+                        pendingHideJob = null
+                        hideBottomSheet(false)
+                        // The panel was expanded when the activity got
+                        // recreated (backgrounded on a lock screen / low
+                        // memory); the queue is empty until the media
+                        // session reconnects, so defer restoring the player
+                        // until the queue comes back.
+                        if (restoreExpanded) {
+                            restoreExpanded = false
+                            expandPanel()
+                        }
+                    }
                 }
             }
         }
@@ -235,14 +266,27 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
+        restoreExpanded = savedInstanceState.getBoolean(PANEL_WAS_EXPANDED, false)
         if (playerViewModel.queue.isEmpty() || savedInstanceState.getBoolean(BOTTOM_SHEET_HIDDEN)) {
             hideBottomSheet(true)
+        } else if (restoreExpanded) {
+            restoreExpanded = false
+            expandPanel()
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(BOTTOM_SHEET_HIDDEN, isBottomSheetHidden)
+        outState.putBoolean(PANEL_WAS_EXPANDED, panelState == STATE_EXPANDED)
+    }
+
+    override fun onStart() {
+        super.onStart()
+    }
+
+    override fun onStop() {
+        super.onStop()
     }
 
     override fun onResume() {
@@ -634,5 +678,10 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
 
     companion object {
         private const val BOTTOM_SHEET_HIDDEN = "is_bottom_sheet_hidden"
+        private const val PANEL_WAS_EXPANDED = "panel_was_expanded"
+        // Wait out the transient empty queue right after the media session
+        // reconnects (service recreated in background) before hiding the
+        // sheet; a real queue clear stays empty and is still honored.
+        private const val QUEUE_EMPTY_HIDE_DELAY_MS = 500L
     }
 }

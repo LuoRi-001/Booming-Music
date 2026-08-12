@@ -79,6 +79,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.bind
 import org.koin.dsl.module
+import java.util.concurrent.Executors
 
 val networkModule = module {
     factory {
@@ -145,6 +146,11 @@ private val mainModule = module {
 private val roomModule = module {
     single {
         Room.databaseBuilder(androidContext(), BoomingDatabase::class.java, "music_database.db")
+            // Transactions run on their own single-thread executor so
+            // frequent small writes (play-count top-ups, history) never
+            // queue up behind the page-loading queries on Room's shared
+            // single-thread executor, which would stall page transitions.
+            .setTransactionExecutor(Executors.newSingleThreadExecutor())
             .addMigrations(
                 BoomingDatabase.MIGRATION_1_2,
                 BoomingDatabase.MIGRATION_2_3,

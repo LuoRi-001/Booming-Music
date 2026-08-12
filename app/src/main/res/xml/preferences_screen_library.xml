@@ -164,4 +164,38 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        app:title="@string/local_storage_header"
+        app:layout="@layout/preference_category_title">
+
+        <Preference
+            app:icon="@drawable/ic_sd_card_24dp"
+            app:title="@string/storage_music_size_title"
+            app:summary="@string/storage_loading"
+            app:layout="@layout/list_item_view"
+            app:key="storage_music_size"/>
+
+        <Preference
+            app:iconSpaceReserved="true"
+            app:title="@string/storage_available_title"
+            app:summary="@string/storage_loading"
+            app:layout="@layout/list_item_view"
+            app:key="storage_available"/>
+
+        <Preference
+            app:iconSpaceReserved="true"
+            app:title="@string/storage_music_percent_title"
+            app:summary="@string/storage_loading"
+            app:layout="@layout/list_item_view"
+            app:key="storage_music_percent"/>
+
+        <Preference
+            app:iconSpaceReserved="true"
+            app:title="@string/storage_used_percent_title"
+            app:summary="@string/storage_loading"
+            app:layout="@layout/list_item_view"
+            app:key="storage_used_percent"/>
+
+    </PreferenceCategory>
+
 </PreferenceScreen>

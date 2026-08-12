@@ -347,6 +347,17 @@ class LibraryViewModel(
     private val timelineCache = mutableMapOf<StatsTimeRange, List<TimelineBar>>()
     private val durationCache = mutableMapOf<StatsTimeRange, Long>()
 
+    // LiveData instances are cached per range and reused across screen
+    // recreations (home card, stats screen). A fresh composition then
+    // observes an already-active LiveData whose value holds the cached data
+    // and receives it synchronously during composition — the first frame
+    // renders the full card instead of the empty initial value that a newly
+    // created cold liveData would show for a frame (the flash seen when
+    // returning from the stats screen to home).
+    private val rankingLiveData = mutableMapOf<StatsTimeRange, LiveData<List<PlayCountEntity>>>()
+    private val timelineLiveData = mutableMapOf<StatsTimeRange, LiveData<List<TimelineBar>>>()
+    private val durationLiveData = mutableMapOf<StatsTimeRange, LiveData<Long>>()
+
     // Scroll position of the listening stats screen, kept in this activity-
     // scoped ViewModel so it survives fragment recreation when leaving and
     // re-entering the screen.
@@ -366,78 +377,80 @@ class LibraryViewModel(
     // scroll restore then never sees a partially rendered card.
     var statsCardHeightPx: Int = 0
 
-    fun listeningStatsRanking(range: StatsTimeRange): LiveData<List<PlayCountEntity>> {
-        val cached = rankingCache[range]
-        return if (cached != null) {
-            // Synchronously emit the cached value on the main thread so a
-            // fresh composition renders the full card (incl. the top-3 block)
-            // on its first frame. A liveData(IO) cold start goes through the
-            // IO dispatcher queue and can take hundreds of ms, which delays
-            // the card's final height and breaks the home screen's scroll
-            // restore. The async refresh below keeps the value live (e.g. on
-            // the stats screen while listening).
-            liveData {
-                emit(cached)
-                repository.rankingSince(cutoffForRange(range)).collect { fresh ->
-                    rankingCache[range] = fresh
-                    emit(fresh)
+    fun listeningStatsRanking(range: StatsTimeRange): LiveData<List<PlayCountEntity>> =
+        rankingLiveData.getOrPut(range) {
+            val cached = rankingCache[range]
+            if (cached != null) {
+                // Emit the cached value on the main thread so a fresh
+                // composition renders the full card (incl. the top-3 block)
+                // immediately. A liveData(IO) cold start goes through the IO
+                // dispatcher queue and can take hundreds of ms. The async
+                // refresh below keeps the value live (e.g. while listening on
+                // the stats screen).
+                liveData {
+                    emit(cached)
+                    repository.rankingSince(cutoffForRange(range)).collect { fresh ->
+                        rankingCache[range] = fresh
+                        emit(fresh)
+                    }
                 }
-            }
-        } else {
-            liveData(IO) {
-                repository.rankingSince(cutoffForRange(range)).collect { fresh ->
-                    rankingCache[range] = fresh
-                    emit(fresh)
+            } else {
+                liveData(IO) {
+                    repository.rankingSince(cutoffForRange(range)).collect { fresh ->
+                        rankingCache[range] = fresh
+                        emit(fresh)
+                    }
                 }
             }
         }
-    }
 
-    fun getTimelineBars(range: StatsTimeRange): LiveData<List<TimelineBar>> {
-        val cached = timelineCache[range]
-        return if (cached != null) {
-            liveData {
-                emit(cached)
-                val bars = withContext(IO) {
+    fun getTimelineBars(range: StatsTimeRange): LiveData<List<TimelineBar>> =
+        timelineLiveData.getOrPut(range) {
+            val cached = timelineCache[range]
+            if (cached != null) {
+                liveData {
+                    emit(cached)
+                    val bars = withContext(IO) {
+                        val now = LocalDate.now()
+                        val zoneId = ZoneId.systemDefault()
+                        val entries = repository.getPlaybackDataSince(cutoffForRange(range))
+                        computeTimelineBars(entries, range, now, zoneId)
+                    }
+                    timelineCache[range] = bars
+                    emit(bars)
+                }
+            } else {
+                liveData(IO) {
                     val now = LocalDate.now()
                     val zoneId = ZoneId.systemDefault()
                     val entries = repository.getPlaybackDataSince(cutoffForRange(range))
-                    computeTimelineBars(entries, range, now, zoneId)
+                    val bars = computeTimelineBars(entries, range, now, zoneId)
+                    timelineCache[range] = bars
+                    emit(bars)
                 }
-                timelineCache[range] = bars
-                emit(bars)
-            }
-        } else {
-            liveData(IO) {
-                val now = LocalDate.now()
-                val zoneId = ZoneId.systemDefault()
-                val entries = repository.getPlaybackDataSince(cutoffForRange(range))
-                val bars = computeTimelineBars(entries, range, now, zoneId)
-                timelineCache[range] = bars
-                emit(bars)
             }
         }
-    }
 
-    fun totalDurationFor(range: StatsTimeRange): LiveData<Long> {
-        val cached = durationCache[range]
-        return if (cached != null) {
-            liveData {
-                emit(cached)
-                repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
-                    durationCache[range] = fresh
-                    emit(fresh)
+    fun totalDurationFor(range: StatsTimeRange): LiveData<Long> =
+        durationLiveData.getOrPut(range) {
+            val cached = durationCache[range]
+            if (cached != null) {
+                liveData {
+                    emit(cached)
+                    repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
+                        durationCache[range] = fresh
+                        emit(fresh)
+                    }
                 }
-            }
-        } else {
-            liveData(IO) {
-                repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
-                    durationCache[range] = fresh
-                    emit(fresh)
+            } else {
+                liveData(IO) {
+                    repository.totalDurationSinceFlow(cutoffForRange(range)).collect { fresh ->
+                        durationCache[range] = fresh
+                        emit(fresh)
+                    }
                 }
             }
         }
-    }
 
     fun totalDurationForToday(): LiveData<Long> = totalDurationFor(StatsTimeRange.TODAY)
 

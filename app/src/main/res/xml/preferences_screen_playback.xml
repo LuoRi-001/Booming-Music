@@ -144,6 +144,24 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        app:title="@string/listening_stats_header"
+        app:layout="@layout/preference_category_title">
+
+        <SeekBarPreference
+            app:icon="@drawable/ic_play_24dp"
+            app:title="@string/play_count_threshold_title"
+            app:summary="@string/play_count_threshold_summary"
+            android:max="120"
+            app:min="5"
+            app:defaultValue="5"
+            app:showSeekBarValue="true"
+            app:layout="@layout/list_item_view_bottom_widget"
+            app:widgetLayout="@layout/preference_seekbar"
+            app:key="play_count_min_listen_seconds"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         app:title="@string/headphones_header"
         app:layout="@layout/preference_category_title">
 

@@ -17,10 +17,14 @@
 
 package com.mardous.booming.ui.screen.settings
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.os.StatFs
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import androidx.activity.result.ActivityResultLauncher
@@ -45,6 +49,7 @@ import com.mardous.booming.coil.CoverProvider
 import com.mardous.booming.core.model.lyrics.LyricsViewSettings
 import com.mardous.booming.data.local.room.InclExclDao
 import com.mardous.booming.data.model.network.ScrobblingService
+import com.mardous.booming.extensions.files.asReadableFileSize
 import com.mardous.booming.extensions.files.getFormattedFileName
 import com.mardous.booming.extensions.hasR
 import com.mardous.booming.extensions.hasS
@@ -101,6 +106,10 @@ import com.mardous.booming.util.ON_SONG_CLICK_ACTION
 import com.mardous.booming.util.PREFERRED_IMAGE_SIZE
 import com.mardous.booming.util.Preferences
 import com.mardous.booming.util.RESTORE_DATA
+import com.mardous.booming.util.STORAGE_AVAILABLE
+import com.mardous.booming.util.STORAGE_MUSIC_PERCENT
+import com.mardous.booming.util.STORAGE_MUSIC_SIZE
+import com.mardous.booming.util.STORAGE_USED_PERCENT
 import com.mardous.booming.util.TRASH_MUSIC_FILES
 import com.mardous.booming.util.USE_CUSTOM_FONT
 import com.mardous.booming.util.USE_FOLDER_ART
@@ -111,6 +120,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
@@ -142,7 +152,88 @@ class LibraryPreferencesFragment : PreferenceScreenFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         addPreferencesFromResource(R.xml.preferences_screen_library)
     }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupLocalStorageStats()
+    }
+
+    /**
+     * Local music storage section: music size & song count from
+     * MediaStore, device capacity from the primary external storage, and
+     * both percentages (music / device total). Tap any row to refresh.
+     */
+    private fun setupLocalStorageStats() {
+        val musicSizePref = findPreference<Preference>(STORAGE_MUSIC_SIZE) ?: return
+        val availablePref = findPreference<Preference>(STORAGE_AVAILABLE) ?: return
+        val musicPercentPref = findPreference<Preference>(STORAGE_MUSIC_PERCENT) ?: return
+        val usedPercentPref = findPreference<Preference>(STORAGE_USED_PERCENT) ?: return
+
+        val refresh = {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val stats = withContext(Dispatchers.IO) { queryStorageStats(requireContext()) }
+                if (!isAdded) return@launch
+                musicSizePref.summary = getString(
+                    R.string.storage_music_size_summary,
+                    stats.musicSizeBytes.asReadableFileSize(),
+                    stats.songCount
+                )
+                availablePref.summary = getString(
+                    R.string.storage_available_summary,
+                    stats.availableBytes.asReadableFileSize(),
+                    stats.totalBytes.asReadableFileSize()
+                )
+                musicPercentPref.summary = getString(
+                    R.string.storage_percent_summary,
+                    stats.musicSizeBytes.percentOf(stats.totalBytes)
+                )
+                usedPercentPref.summary = getString(
+                    R.string.storage_percent_summary,
+                    (stats.totalBytes - stats.availableBytes).percentOf(stats.totalBytes)
+                )
+            }
+        }
+        refresh()
+        listOf(musicSizePref, availablePref, musicPercentPref, usedPercentPref).forEach {
+            it.onPreferenceClickListener = Preference.OnPreferenceClickListener {
+                refresh()
+                true
+            }
+        }
+    }
 }
+
+private data class StorageStats(
+    val musicSizeBytes: Long,
+    val songCount: Int,
+    val totalBytes: Long,
+    val availableBytes: Long
+)
+
+private fun queryStorageStats(context: Context): StorageStats {
+    var musicSizeBytes = 0L
+    var songCount = 0
+    context.contentResolver.query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        arrayOf(MediaStore.Audio.Media.SIZE),
+        null,
+        null,
+        null
+    )?.use { cursor ->
+        val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+        while (cursor.moveToNext()) {
+            musicSizeBytes += cursor.getLong(sizeColumn)
+            songCount++
+        }
+    }
+    val statFs = StatFs(Environment.getExternalStorageDirectory().absolutePath)
+    val totalBytes = statFs.totalBytes
+    val availableBytes = statFs.availableBytes
+    return StorageStats(musicSizeBytes, songCount, totalBytes, availableBytes)
+}
+
+private fun Long.percentOf(total: Long): Int =
+    if (total > 0) ((this * 100) / total).toInt() else 0
 
 class NetworkPreferencesFragment : PreferenceScreenFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {

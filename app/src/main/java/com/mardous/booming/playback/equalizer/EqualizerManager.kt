@@ -74,6 +74,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlin.jvm.Synchronized
 
 val Context.eqDataStore by preferencesDataStore("equalizer")
 
@@ -702,14 +703,40 @@ class EqualizerManager(
     }
 
     fun setSessionId(audioSessionId: Int, eqState: EqState = this.eqState.value) {
-        // Called from onAudioSessionIdChanged, when Media3 reports the
-        // session of a real AudioTrack. When no engine exists yet, create
-        // it right away — the session is live by definition. When the
-        // engine was speculatively created before that confirmation,
-        // recreate it so effects attach to the live session.
+        // Called from onAudioSessionIdChanged. Media3 may report the
+        // session id before the AudioTrack that backs it exists (the id is
+        // allocated up front). Creating the engine at that point attaches
+        // its effects to a chain with no output thread (io 0); when the
+        // real track starts, the chain must migrate to the output thread,
+        // and rebuilding the DSP chain on live audio causes a noise burst
+        // on some HALs (e.g. Redmi K80). So when no engine exists yet,
+        // wait for playback start (confirmSession) to create it — the
+        // track is guaranteed to exist by then. Only a speculatively
+        // created engine (init block, awaitingSessionConfirm) is
+        // (re)created here, and only when it targets this session.
         val engine = eqEngine
-        val confirmNow = engine == null ||
-            (awaitingSessionConfirm && engine.sessionId == audioSessionId)
+        if (engine == null) {
+            val oldSession = eqSession
+            eqSession = eqSession.copy(
+                id = audioSessionId,
+                type = if (eqState.enabled) {
+                    SessionType.Internal
+                } else {
+                    SessionType.External
+                }
+            )
+            // Keep the old-session close broadcast behavior of
+            // setSession() when the session really changed.
+            if (oldSession.type == SessionType.External && oldSession.id != NO_SESSION_ID) {
+                val intent = Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION)
+                    .putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+                    .putExtra(AudioEffect.EXTRA_AUDIO_SESSION, oldSession.id)
+                context.sendBroadcast(intent)
+            }
+            awaitingSessionConfirm = true
+            return
+        }
+        val confirmNow = awaitingSessionConfirm && engine.sessionId == audioSessionId
         setSession(
             eqSession.copy(
                 id = audioSessionId,
@@ -748,6 +775,7 @@ class EqualizerManager(
         )
     }
 
+    @Synchronized
     private fun setSession(
         newSession: EqSession,
         eqState: EqState = this.eqState.value,
@@ -797,10 +825,10 @@ class EqualizerManager(
         if (!eqState.isDisabledByReason && eqState.supported && newSession.id != NO_SESSION_ID) {
             when (newSession.type) {
                 SessionType.Internal -> {
-                    if (newSession.id != this.eqEngine?.sessionId ||
+                    val engineRecreated = newSession.id != this.eqEngine?.sessionId ||
                         eqEngine?.isOperational == false ||
                         forceRecreate
-                    ) {
+                    if (engineRecreated) {
                         eqEngine?.release()
                         eqEngine = createEngine(
                             mode = eqState.engineMode,
@@ -815,17 +843,18 @@ class EqualizerManager(
                         // confirmation and is recreated once the session is
                         // live.
                         awaitingSessionConfirm = !forceRecreate
-                        Log.i(
-                            TAG,
-                            "Engine (re)created: mode=${eqState.engineMode}, " +
-                                "session=${newSession.id}, bands=${eqState.preferredBandCount}, " +
-                                "operational=${eqEngine?.isOperational}, awaitingConfirm=$awaitingSessionConfirm"
-                        )
                     }
-                    // Always apply full config before enabling — createEngine() may
-                    // have used a stale eqState (Unspecified) due to a startup race
-                    // between DataStore loading and the audio session being created.
-                    if (eqState.isUsable) {
+                    // Apply the full config when the engine was (re)created
+                    // or the session actually changed — createEngine() may
+                    // have used a stale eqState (Unspecified) due to a
+                    // startup race between DataStore loading and the audio
+                    // session being created. A play/pause flip on the same
+                    // session keeps the chain untouched: rewriting every DSP
+                    // parameter while audio is already flowing causes a
+                    // noise burst on some HALs (e.g. Redmi K80).
+                    val sessionChanged = newSession.id != oldSession.id ||
+                        oldSession.type != SessionType.Internal
+                    if (eqState.isUsable && (engineRecreated || sessionChanged)) {
                         applyChangesToEngine(engine = eqEngine, state = eqState)
                     }
                 }

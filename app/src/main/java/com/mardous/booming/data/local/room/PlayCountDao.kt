@@ -61,6 +61,26 @@ interface PlayCountDao {
         )
     }
 
+    /**
+     * Adds listening time to an existing row without bumping the play
+     * count (used to top up a session that already settled). Creates the
+     * row as a fallback when it doesn't exist yet.
+     */
+    @Transaction
+    suspend fun addPlayDuration(song: Song, timePlayed: Long, actualDurationMs: Long) {
+        if (song.id < 0 || song.data.isEmpty() || actualDurationMs <= 0) return
+
+        val playCountEntity = findSongExistInPlayCount(song.id)
+            ?: song.toPlayCount(timePlayed = timePlayed)
+
+        upsertSongInPlayCount(
+            playCountEntity.copy(
+                totalPlayDurationMs = playCountEntity.totalPlayDurationMs + actualDurationMs,
+                timePlayed = timePlayed
+            )
+        )
+    }
+
     @Transaction
     suspend fun insertOrIncrementSkipCount(song: Song) {
         if (song.id < 0 || song.data.isEmpty()) return

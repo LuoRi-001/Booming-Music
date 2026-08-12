@@ -147,10 +147,16 @@ fun Fragment.getOnBackPressedDispatcher() = requireActivity().onBackPressedDispa
 fun Fragment.materialSharedAxis(
     view: View = requireView(),
     direction: Int = MaterialSharedAxis.X,
-    prepareTransition: Boolean = true
+    prepareTransition: Boolean = true,
+    returnTransitionEnabled: Boolean = true
 ) {
     MaterialSharedAxis(direction, true).let { enterTransition = it; exitTransition = it }
-    MaterialSharedAxis(direction, false).let { returnTransition = it; reenterTransition = it }
+    MaterialSharedAxis(direction, false).let {
+        reenterTransition = it
+        if (returnTransitionEnabled) {
+            returnTransition = it
+        }
+    }
     if (prepareTransition) {
         postponeEnterTransition()
         view.doOnPreDraw {

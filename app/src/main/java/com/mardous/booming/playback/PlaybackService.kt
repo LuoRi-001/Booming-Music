@@ -99,6 +99,7 @@ import com.mardous.booming.util.ENABLE_HISTORY
 import com.mardous.booming.util.IGNORE_AUDIO_FOCUS
 import com.mardous.booming.util.MP3_INDEX_SEEKING
 import com.mardous.booming.util.PAUSE_ON_ZERO_VOLUME
+import com.mardous.booming.util.PLAY_COUNT_MIN_LISTEN_SECONDS
 import com.mardous.booming.util.PLAY_ON_STARTUP_MODE
 import com.mardous.booming.util.PlayOnStartupMode
 import com.mardous.booming.util.Preferences
@@ -108,6 +109,7 @@ import com.mardous.booming.util.REWIND_WITH_BACK
 import com.mardous.booming.util.SEEK_INTERVAL
 import com.mardous.booming.util.STOP_WHEN_CLOSED_FROM_RECENTS
 import com.mardous.booming.util.SongPlayCountHelper
+import com.mardous.booming.util.TopUpResult
 import com.mardous.booming.util.WIDGET_DYNAMIC_COLORS
 import com.mardous.booming.util.WIDGET_IMAGE_CORNER_RADIUS
 import com.mardous.booming.util.WIDGET_SMALL_LAYOUT_STYLE
@@ -116,7 +118,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
@@ -144,7 +150,11 @@ class PlaybackService :
     private val repository: Repository by inject()
 
     private val libraryProvider = LibraryProvider(repository)
-    private val songPlayCountHelper = SongPlayCountHelper()
+    private val playCountMinListenMs: Long
+        get() = preferences.getInt(PLAY_COUNT_MIN_LISTEN_SECONDS, 5) * 1000L
+    private val songPlayCountHelper = SongPlayCountHelper(playCountMinListenMs)
+    private val playCountMutex = Mutex()
+    private var settleMonitorJob: Job? = null
     private val mediaStoreObserver = MediaStoreObserver(uiHandler) {
         mediaSession?.broadcastCustomCommand(
             SessionCommand(Playback.EVENT_MEDIA_CONTENT_CHANGED, Bundle.EMPTY),
@@ -162,7 +172,7 @@ class PlaybackService :
     private lateinit var player: AdvancedForwardingPlayer
     private var mediaSession: MediaLibrarySession? = null
 
-    private var eqStateHandler: Handler? = Handler(Looper.getMainLooper())
+    private var eqDeactivateJob: Job? = null
 
     private var errorRecoveryRetryCount = 0
     private var pausedByZeroVolume = false
@@ -211,8 +221,13 @@ class PlaybackService :
         get() = preferences.getString(QUEUE_NEXT_MODE, "1") == "1"
     private val handleAudioFocus: Boolean
         get() = preferences.getBoolean(IGNORE_AUDIO_FOCUS, false).not()
+    // ExoPlayer rewinds to the track start when the position exceeds this
+    // value, otherwise it moves to the previous track. When the rewind
+    // feature is off, no position exceeds it, so 'Previous' always moves
+    // to the previous track; when on, the threshold follows the
+    // rewind/fast-forward amount.
     private val maxSeekToPreviousMs: Long
-        get() = if (preferences.getBoolean(REWIND_WITH_BACK, true)) REWIND_INSTEAD_PREVIOUS_MILLIS else 0
+        get() = if (preferences.getBoolean(REWIND_WITH_BACK, true)) seekInterval else Long.MAX_VALUE
     private val seekInterval: Long
         get() = preferences.getInt(SEEK_INTERVAL, 10) * 1000L
 
@@ -347,12 +362,16 @@ class PlaybackService :
     override fun onTaskRemoved(rootIntent: Intent?) {
         if ((!isPlaybackOngoing && !isInTransientFocusLoss) ||
             preferences.getBoolean(STOP_WHEN_CLOSED_FROM_RECENTS, false)) {
+            finalizeCurrentSong()
             pauseAllPlayersAndStopSelf()
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        // Service is being destroyed (e.g. process killed) — settle any
+        // unfinished session so the accrued listening time is not lost.
+        finalizeCurrentSong()
         if (bluetoothConnectedRegistered) {
             unregisterReceiver(bluetoothReceiver)
             bluetoothConnectedRegistered = false
@@ -361,7 +380,7 @@ class PlaybackService :
             unregisterReceiver(headsetReceiver)
             headsetReceiverRegistered = false
         }
-        eqStateHandler?.removeCallbacksAndMessages(null)
+        eqDeactivateJob?.cancel()
         uiHandler.removeCallbacks(headsetClickRunnable)
         serviceScope.cancel()
         preferences.unregisterOnSharedPreferenceChangeListener(this)
@@ -440,7 +459,6 @@ class PlaybackService :
     }
 
     override fun onAudioSessionIdChanged(audioSessionId: Int) {
-        Log.i("PlaybackService", "Audio session reported: $audioSessionId")
         equalizerManager.setSessionId(audioSessionId)
     }
 
@@ -717,6 +735,11 @@ class PlaybackService :
             preferences.getBoolean(CLEAR_QUEUE_ON_COMPLETION, false)) {
             player.exoPlayer.clearMediaItems()
         }
+        if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
+            // Track finished naturally or stopped by the user — settle the
+            // session without requiring a media item transition.
+            finalizeCurrentSong()
+        }
         refreshMediaButtonCustomLayout()
     }
 
@@ -731,6 +754,9 @@ class PlaybackService :
             if (stopIndex == player.currentMediaItemIndex) {
                 stopIndex = -1
             }
+            // Played to the end without advancing (e.g. stop at queue end,
+            // sleep timer with pending quit) — settle the session.
+            finalizeCurrentSong()
         }
     }
 
@@ -744,6 +770,23 @@ class PlaybackService :
             }
         }
         songPlayCountHelper.notifyPlayStateChanged(isPlaying)
+        if (isPlaying && songPlayCountHelper.isFinalized) {
+            // Same song replayed after a stop — start a fresh session, as
+            // Media3 may not emit a media item transition in this case.
+            songPlayCountHelper.notifySongChanged(songPlayCountHelper.song, true)
+            startSettleMonitor()
+        }
+        if (!isPlaying) {
+            // Paused or stopped — write the listening time accrued since
+            // the last write right now, so the stats are accurate without
+            // waiting for a media item transition. The write runs on a
+            // dedicated transaction executor (see MainModule) and reactive
+            // screens debounce their queries, so it never stalls a page
+            // transition happening at the same time.
+            songPlayCountHelper.topUp(force = true)?.let { topUp ->
+                serviceScope.launch(IO) { writeTopUp(topUp) }
+            }
+        }
         updateWidgets()
     }
 
@@ -766,8 +809,10 @@ class PlaybackService :
             val newSong = repository.songByMediaItem(mediaItem)
 
             val previousSong = songPlayCountHelper.song
-            val shouldBumpPlayCount = songPlayCountHelper.shouldBumpPlayCount()
-            val actualListeningTime = songPlayCountHelper.actualListeningTime
+            // Claim the settlement atomically, so a concurrent claim by
+            // the settle monitor never results in a double play count.
+            val wasSettled = songPlayCountHelper.settledEventTimeMs != 0L
+            val claimedPlay = songPlayCountHelper.trySettleNow()
             songPlayCountHelper.notifySongChanged(newSong, isPlaying)
 
             if (newSong.id != -1L) {
@@ -783,29 +828,23 @@ class PlaybackService :
                 }
             }
             if (previousSong.id != -1L) {
-                val timestampMillis = System.currentTimeMillis()
-                val timestampSeconds = (timestampMillis / 1000)
-                if (shouldBumpPlayCount) {
-                    repository.insertOrIncrementPlayCount(
-                        song = previousSong,
-                        timePlayed = timestampMillis,
-                        actualDurationMs = actualListeningTime
-                    )
-                    // Event-level record so listening stats can be filtered
-                    // by day/week/month/year instead of lifetime counters.
-                    repository.insertPlaybackEvent(
-                        song = previousSong,
-                        timePlayed = timestampMillis,
-                        durationMs = actualListeningTime
-                    )
-                    if (NetworkFeature.Lastfm.Scrobbling.isAvailable) {
-                        launch { repository.scrobble(ScrobblingService.Lastfm, previousSong, timestampSeconds) }
+                when {
+                    claimedPlay != null -> {
+                        recordPlay(claimedPlay.song, claimedPlay.durationMs, claimedPlay.timePlayed)
                     }
-                    if (NetworkFeature.ListenBrainz.Scrobbling.isAvailable) {
-                        launch { repository.scrobble(ScrobblingService.ListenBrainz, previousSong, timestampSeconds) }
+
+                    wasSettled -> {
+                        // Already settled (e.g. by the settle monitor) —
+                        // only top up the extra listening time without
+                        // bumping the play count again. A transition is a
+                        // settlement point, so write the exact accrued
+                        // amount regardless of the interval.
+                        songPlayCountHelper.topUp(force = true)?.let { writeTopUp(it) }
                     }
-                } else if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
-                    repository.insertOrIncrementSkipCount(previousSong)
+
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> {
+                        repository.insertOrIncrementSkipCount(previousSong)
+                    }
                 }
             }
         }
@@ -814,8 +853,91 @@ class PlaybackService :
             player.exoPlayer.pauseAtEndOfMediaItems = true
         }
 
+        startSettleMonitor()
         persistentStorage.saveState()
         updateWidgets(force = true)
+    }
+
+    /**
+     * Records a settled play: bumps the play count, inserts the
+     * event-level record (so listening stats can be filtered by
+     * day/week/month/year instead of lifetime counters) and scrobbles.
+     */
+    private suspend fun recordPlay(song: Song, durationMs: Long, timePlayed: Long) {
+        withContext(NonCancellable) {
+            playCountMutex.withLock {
+                repository.insertOrIncrementPlayCount(
+                    song = song,
+                    timePlayed = timePlayed,
+                    actualDurationMs = durationMs
+                )
+                repository.insertPlaybackEvent(
+                    song = song,
+                    timePlayed = timePlayed,
+                    durationMs = durationMs
+                )
+            }
+        }
+        if (NetworkFeature.Lastfm.Scrobbling.isAvailable) {
+            serviceScope.launch { repository.scrobble(ScrobblingService.Lastfm, song, timePlayed / 1000) }
+        }
+        if (NetworkFeature.ListenBrainz.Scrobbling.isAvailable) {
+            serviceScope.launch { repository.scrobble(ScrobblingService.ListenBrainz, song, timePlayed / 1000) }
+        }
+    }
+
+    /**
+     * Polls the current session every 500ms: settles it as soon as the
+     * minimum listening time is reached (so plays are counted without
+     * needing a media item transition), then keeps topping up the extra
+     * listening time every [SongPlayCountHelper] top-up interval, so the
+     * stats stay accurate even if the process dies without a clean stop.
+     * One job per song session.
+     */
+    private fun startSettleMonitor() {
+        settleMonitorJob?.cancel()
+        settleMonitorJob = serviceScope.launch(IO) {
+            while (isActive) {
+                val claimedPlay = songPlayCountHelper.trySettleNow()
+                if (claimedPlay != null) {
+                    recordPlay(claimedPlay.song, claimedPlay.durationMs, claimedPlay.timePlayed)
+                }
+                songPlayCountHelper.topUp()?.let { writeTopUp(it) }
+                if (songPlayCountHelper.isFinalized) return@launch
+                delay(500)
+            }
+        }
+    }
+
+    /**
+     * Writes a top-up of listening time without bumping the play count:
+     * extends the event row created at settlement time and adds the delta
+     * to the lifetime counter.
+     */
+    private suspend fun writeTopUp(topUp: TopUpResult) {
+        if (topUp.deltaMs <= 0) return
+        playCountMutex.withLock {
+            repository.addPlayDuration(topUp.song, topUp.timePlayed, topUp.deltaMs)
+            repository.updatePlaybackEventDuration(topUp.song.id, topUp.timePlayed, topUp.totalMs)
+        }
+    }
+
+    /**
+     * Ends the current song session: settles it if the threshold was
+     * reached, or tops up the extra listening time if it already settled.
+     * Idempotent — safe to call from multiple stop paths.
+     */
+    private fun finalizeCurrentSong() {
+        val song = songPlayCountHelper.song
+        if (song.id == -1L || songPlayCountHelper.isFinalized) return
+        val result = songPlayCountHelper.notifyFinalized() ?: return
+        serviceScope.launch(IO + NonCancellable) {
+            if (result.wasSettled) {
+                writeTopUp(TopUpResult(result.song, result.timePlayed, result.topUpMs, result.durationMs + result.topUpMs))
+            } else {
+                recordPlay(result.song, result.durationMs, result.timePlayed)
+            }
+        }
     }
 
     override fun onPlayerError(error: PlaybackException) {
@@ -897,6 +1019,13 @@ class PlaybackService :
             SEEK_INTERVAL -> {
                 player.exoPlayer.setSeekBackIncrementMs(seekInterval)
                 player.exoPlayer.setSeekForwardIncrementMs(seekInterval)
+                player.exoPlayer.setMaxSeekToPreviousPositionMs(maxSeekToPreviousMs)
+            }
+
+            PLAY_COUNT_MIN_LISTEN_SECONDS -> {
+                // Only affects songs started after the change (the session
+                // snapshots the threshold at notifySongChanged).
+                songPlayCountHelper.updateMinListenMs(playCountMinListenMs)
             }
 
             WIDGET_DYNAMIC_COLORS,
@@ -1175,13 +1304,18 @@ class PlaybackService :
     }
 
     private fun updateEqualizerSessionState(isPlaying: Boolean) {
-        eqStateHandler?.removeCallbacksAndMessages(null)
+        eqDeactivateJob?.cancel()
         uiHandler.removeCallbacks(headsetClickRunnable)
         if (isPlaying) {
             equalizerManager.confirmSession()
             equalizerManager.setSessionIsActive(true)
         } else {
-            eqStateHandler?.postDelayed(500) {
+            // Deactivate the EQ session shortly after pausing. Runs off
+            // the main thread because applying the full engine state can
+            // take 150-400ms on some devices (e.g. K80) — on the main
+            // thread it would stall page transitions right after pausing.
+            eqDeactivateJob = serviceScope.launch(IO) {
+                delay(500)
                 equalizerManager.setSessionIsActive(false)
             }
         }
@@ -1267,7 +1401,6 @@ class PlaybackService :
 
         private const val MAX_RETRY_COUNT_AFTER_ERROR = 3
         private const val WIDGET_UPDATE_DEBOUNCE = 300L
-        private const val REWIND_INSTEAD_PREVIOUS_MILLIS = 5000L
 
         private const val FOREGROUND_SERVICE_TIMEOUT = (60 * 1000) * 2L
     }

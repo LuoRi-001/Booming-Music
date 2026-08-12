@@ -125,6 +125,8 @@ interface Repository {
     suspend fun findSongInPlayCount(songId: Long): PlayCountEntity?
     suspend fun insertOrIncrementPlayCount(song: Song, timePlayed: Long, actualDurationMs: Long = 0L)
     suspend fun insertOrIncrementSkipCount(song: Song)
+    suspend fun addPlayDuration(song: Song, timePlayed: Long, actualDurationMs: Long)
+    suspend fun updatePlaybackEventDuration(songId: Long, timePlayed: Long, durationMs: Long)
     suspend fun clearPlayCount()
     suspend fun upsertSongInHistory(currentSong: Song)
     suspend fun deleteSongInHistory(songId: Long)
@@ -387,6 +389,12 @@ class RealRepository(
 
     override suspend fun insertOrIncrementSkipCount(song: Song) =
         smartRepository.insetOrIncrementSkipCount(song)
+
+    override suspend fun addPlayDuration(song: Song, timePlayed: Long, actualDurationMs: Long) =
+        smartRepository.addPlayDuration(song, timePlayed, actualDurationMs)
+
+    override suspend fun updatePlaybackEventDuration(songId: Long, timePlayed: Long, durationMs: Long) =
+        smartRepository.updatePlaybackEventDuration(songId, timePlayed, durationMs)
 
     override suspend fun clearPlayCount() = smartRepository.clearPlayCount()
 
