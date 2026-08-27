@@ -3,6 +3,7 @@ package com.mardous.booming.ui.component.compose.lyrics
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.StartOffsetType
@@ -45,12 +46,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -58,6 +63,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -99,7 +105,8 @@ fun LyricsView(
 
     val lineSpacing = settings.lineSpacing.dp
 
-    val disableAdvancedEffects = isPowerSaveMode || hasBackgroundEffects.not()
+    // 文字模糊/阴影独立于背景效果生效:背景效果为"无"时不再禁用高级效果
+    val disableAdvancedEffects = isPowerSaveMode
     var disableBlurEffect by remember { mutableStateOf(disableAdvancedEffects) }
     if (isInDragGesture) {
         disableBlurEffect = true
@@ -534,19 +541,6 @@ private fun LineSyncedView(
     align: TextAlign,
     modifier: Modifier = Modifier
 ) {
-    var textHeight by remember { mutableFloatStateOf(0f) }
-
-    val animatedAlpha by animateFloatAsState(
-        targetValue = if (selectedLine) 1f else .4f,
-        animationSpec = tween(400),
-        label = "current-line-alpha-animation"
-    )
-
-    val animatedOrigin by animateFloatAsState(
-        targetValue = if (selectedLine) progressFraction * textHeight else 0f,
-        label = "line-gradient-origin"
-    )
-
     val shadowRadius by animateFloatAsState(
         targetValue = if (selectedLine) 10f * progressFraction else 0f,
         animationSpec = tween(effectDuration)
@@ -561,31 +555,132 @@ private fun LineSyncedView(
         Shadow.None
     }
 
-    val textStyle by remember(color, selectedLine, progressiveColoring, animatedOrigin) {
-        derivedStateOf {
-            if (progressiveColoring) {
-                style.copy(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(color, color.copy(alpha = .4f)),
-                        startY = animatedOrigin - 10f,
-                        endY = animatedOrigin + 10f
+    if (!progressiveColoring) {
+        val animatedAlpha by animateFloatAsState(
+            targetValue = if (selectedLine) 1f else .4f,
+            animationSpec = tween(400),
+            label = "current-line-alpha-animation"
+        )
+        val textStyle by remember(color, animatedAlpha) {
+            derivedStateOf { style.copy(color = color.copy(alpha = animatedAlpha)) }
+        }
+        Text(
+            text = content,
+            style = textStyle.copy(shadow = shadow),
+            textAlign = align,
+            modifier = modifier
+        )
+        return
+    }
+
+    // 卡拉OK渐变填充:多行歌词按行顺序填充(第一行填完再填第二行);
+    // 已唱完的行保持填满,不回退收回
+    var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    val targetFill = when {
+        selectedLine -> progressFraction
+        progressFraction >= 1f -> 1f
+        else -> 0f
+    }
+    val animatedFill by animateFloatAsState(
+        targetValue = targetFill,
+        // 线性补间与进度轮询节拍(100ms)匹配:每次 tick 线性推进到新目标,
+        // 前进线匀速移动;弹簧会在 tick 间收敛停顿再突跳,产生抖动感
+        animationSpec = tween(durationMillis = 100, easing = LinearEasing),
+        label = "line-gradient-fill"
+    )
+
+    val sungGeometry = remember(layoutResult, animatedFill) {
+        layoutResult?.let { computeSungGeometry(it, animatedFill) }
+    }
+
+    Box(modifier) {
+        // 底层:暗态文字(未唱部分)+ 阴影
+        Text(
+            text = content,
+            style = style.copy(color = color.copy(alpha = .4f), shadow = shadow),
+            textAlign = align,
+            onTextLayout = { layoutResult = it }
+        )
+
+        val layout = layoutResult
+        if (layout != null && sungGeometry != null) {
+            // 已唱满的行:整行高亮
+            if (sungGeometry.fullySungRows > 0) {
+                val solidPath = Path().apply {
+                    addRect(
+                        Rect(
+                            0f, 0f,
+                            layout.size.width.toFloat(),
+                            layout.getLineBottom(sungGeometry.fullySungRows - 1).toFloat()
+                        )
                     )
+                }
+                Text(
+                    text = content,
+                    style = style.copy(color = color),
+                    textAlign = align,
+                    modifier = Modifier.drawWithContent {
+                        clipPath(solidPath) { this@drawWithContent.drawContent() }
+                    }
                 )
-            } else {
-                style.copy(color = color.copy(alpha = animatedAlpha))
+            }
+            // 正在填充的行:亮色渐隐到透明,叠加在暗态底色上形成过渡带
+            if (sungGeometry.fadeRow >= 0) {
+                val fadePath = Path().apply {
+                    addRect(
+                        Rect(
+                            0f, layout.getLineTop(sungGeometry.fadeRow).toFloat(),
+                            layout.size.width.toFloat(),
+                            layout.getLineBottom(sungGeometry.fadeRow).toFloat()
+                        )
+                    )
+                }
+                Text(
+                    text = content,
+                    style = style.copy(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(color, Color.Transparent),
+                            startX = sungGeometry.fadeStartX,
+                            endX = sungGeometry.fadeEndX
+                        )
+                    ),
+                    textAlign = align,
+                    modifier = Modifier.drawWithContent {
+                        clipPath(fadePath) { this@drawWithContent.drawContent() }
+                    }
+                )
             }
         }
     }
+}
 
-    Text(
-        text = content,
-        style = textStyle.copy(shadow = shadow),
-        textAlign = align,
-        modifier = modifier
-            .onGloballyPositioned {
-                textHeight = it.size.height.toFloat()
-            }
-    )
+/**
+ * 将填充比例映射到文本布局:按可见行宽度依次消耗填充距离,
+ * 得到已填满的行数与正在填充行内的渐变带位置。
+ */
+private class SungGeometry(
+    val fullySungRows: Int,
+    val fadeRow: Int,
+    val fadeStartX: Float,
+    val fadeEndX: Float
+)
+
+private fun computeSungGeometry(layout: TextLayoutResult, fill: Float): SungGeometry {
+    if (fill <= 0f) return SungGeometry(0, -1, 0f, 0f)
+    if (fill >= 1f) return SungGeometry(layout.lineCount, -1, 0f, 0f)
+    val rowWidths = (0 until layout.lineCount).map { row ->
+        layout.getLineRight(row) - layout.getLineLeft(row)
+    }
+    var remaining = fill * rowWidths.sum()
+    for (row in rowWidths.indices) {
+        if (remaining < rowWidths[row]) {
+            val front = layout.getLineLeft(row) + remaining
+            return SungGeometry(row, row, front - 10f, front + 10f)
+        }
+        remaining -= rowWidths[row]
+    }
+    return SungGeometry(layout.lineCount, -1, 0f, 0f)
 }
 
 @Composable

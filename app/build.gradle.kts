@@ -73,7 +73,7 @@ sealed class Version(
 val currentVersion: Version = Version.Stable(
     versionMajor = 1,
     versionMinor = 3,
-    versionPatch = 6
+    versionPatch = 7
 )
 val currentVersionCode = currentVersion.code
 

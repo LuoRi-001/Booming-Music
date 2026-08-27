@@ -39,7 +39,9 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,17 +109,35 @@ fun rememberSmoothPlaybackPosition(
     isPlaying: Boolean
 ): State<Long> {
     val position = remember { mutableLongStateOf(playerPosition) }
-    LaunchedEffect(playerPosition, isPlaying) {
-        val baseRealtime = SystemClock.elapsedRealtime()
+    val latestPolled by rememberUpdatedState(playerPosition)
+    val latestSpeed by rememberUpdatedState(playbackSpeed)
+
+    LaunchedEffect(isPlaying) {
         if (!isPlaying) {
-            position.longValue = playerPosition
+            // 暂停时直接跟随轮询值(seek 也要响应)
+            snapshotFlow { latestPolled }.collect {
+                position.longValue = it
+            }
             return@LaunchedEffect
         }
 
+        // 播放中:帧级插值推进。轮询值只在领先于插值(或大幅落后,
+        // 即 seek/切歌)时才校正锚点——轮询值经 binder 延迟到达时通常
+        // 落后于插值已推进的位置,若照单全收会把进度往回拉,造成渐变抖动
+        var anchorPosition = position.longValue
+        var anchorRealtime = SystemClock.elapsedRealtime()
         while (isActive) {
             withFrameNanos {
-                val elapsed = SystemClock.elapsedRealtime() - baseRealtime
-                position.longValue = playerPosition + (elapsed * playbackSpeed).toLong()
+                val now = SystemClock.elapsedRealtime()
+                val interpolated = anchorPosition + ((now - anchorRealtime) * latestSpeed).toLong()
+                val polled = latestPolled
+                if (polled > interpolated || interpolated - polled > 1000) {
+                    anchorPosition = polled
+                    anchorRealtime = now
+                    position.longValue = polled
+                } else {
+                    position.longValue = interpolated
+                }
             }
         }
     }

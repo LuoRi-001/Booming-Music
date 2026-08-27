@@ -140,7 +140,7 @@ class QueueFragment : BottomSheetDialogFragment(R.layout.fragment_queue),
         dragDropManager!!.attachRecyclerView(_binding!!.recyclerView)
         layoutManager!!.scrollToPosition(position.next)
 
-        binding.recyclerView.createFastScroller()
+        binding.recyclerView.createFastScroller(longPressActivation = true)
 
         viewLifecycleOwner.launchAndRepeatWithViewLifecycle {
             playerViewModel.isPlayingFlow.collect { isPlaying ->

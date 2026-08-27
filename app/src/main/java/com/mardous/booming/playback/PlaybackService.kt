@@ -39,6 +39,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.Tracks
 import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -740,6 +741,17 @@ class PlaybackService :
             // session without requiring a media item transition.
             finalizeCurrentSong()
         }
+        // 随机模式播完自动循环:回到随机顺序第一首继续播放
+        // (顺序模式保持现状,播完暂停;repeat ALL 时引擎自己循环,不会走到 ENDED)
+        if (playbackState == Player.STATE_ENDED &&
+            player.shuffleModeEnabled &&
+            !player.currentTimeline.isEmpty) {
+            val firstIndex = player.getQueueItems(true).firstOrNull()?.indexInTimeline
+            if (firstIndex != null) {
+                player.seekToDefaultPosition(firstIndex)
+                player.play()
+            }
+        }
         refreshMediaButtonCustomLayout()
     }
 
@@ -974,7 +986,6 @@ class PlaybackService :
         }
     }
 
-    /*
     override fun onTracksChanged(tracks: Tracks) {
         var sampleRate = -1
         var channelCount = -1
@@ -992,7 +1003,6 @@ class PlaybackService :
         }
         audioOutputObserver.updatePlaybackFormat(sampleRate, channelCount)
     }
-     */
 
     override fun onSharedPreferenceChanged(preferences: SharedPreferences, key: String?) {
         when (key) {

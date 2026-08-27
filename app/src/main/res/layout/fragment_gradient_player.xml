@@ -36,7 +36,7 @@
             app:layout_constraintBottom_toBottomOf="@id/playerAlbumCoverFragment"
             app:layout_constraintEnd_toEndOf="@id/playerAlbumCoverFragment"
             app:layout_constraintStart_toStartOf="@id/playerAlbumCoverFragment"
-            app:layout_constraintTop_toTopOf="@id/playerAlbumCoverFragment"
+            app:layout_constraintHeight_percent="0.2"
             tools:backgroundTint="?colorSurface"/>
 
         <!-- 3. Top gradient mask: transparent backdrop for toolbar text -->

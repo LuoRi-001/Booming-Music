@@ -21,13 +21,17 @@ import android.animation.Animator
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.os.SystemClock
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.Menu
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.animation.AccelerateInterpolator
@@ -82,8 +86,11 @@ import io.noties.markwon.AbstractMarkwonPlugin
 import io.noties.markwon.Markwon
 import io.noties.markwon.core.MarkwonTheme
 import io.noties.markwon.html.HtmlPlugin
+import kotlin.math.abs
 import me.zhanghai.android.fastscroll.FastScroller
 import me.zhanghai.android.fastscroll.FastScrollerBuilder
+import me.zhanghai.android.fastscroll.PopupTextProvider
+import me.zhanghai.android.fastscroll.Predicate
 import com.google.android.material.R as M3R
 
 const val BOOMING_ANIM_TIME = 350L
@@ -412,7 +419,10 @@ fun RecyclerView.onVerticalScroll(
     })
 }
 
-fun ViewGroup.createFastScroller(disablePopup: Boolean = false): FastScroller {
+fun ViewGroup.createFastScroller(
+    disablePopup: Boolean = false,
+    longPressActivation: Boolean = true
+): FastScroller {
     val thumbDrawable = ContextCompat.getDrawable(context, R.drawable.scroller_thumb)
     val trackDrawable = ContextCompat.getDrawable(context, R.drawable.scroller_track)
     val fastScrollerBuilder = FastScrollerBuilder(this)
@@ -426,7 +436,345 @@ fun ViewGroup.createFastScroller(disablePopup: Boolean = false): FastScroller {
     if (disablePopup) {
         fastScrollerBuilder.setPopupTextProvider { _, _ -> "" }
     }
-    return fastScrollerBuilder.build()
+    val helper = if (longPressActivation && this is RecyclerView) {
+        // The handle's touch target covers the item buttons on the right edge
+        // of each row, eating their taps. Let taps pass through to the list
+        // content and only activate the scroller on a long press.
+        LongPressFastScrollViewHelper(this).also {
+            fastScrollerBuilder.setViewHelper(it)
+        }
+    } else null
+    val fastScroller = fastScrollerBuilder.build()
+    helper?.attach(fastScroller)
+    return fastScroller
+}
+
+/**
+ * [FastScroller.ViewHelper] that gates the handle behind a long press: taps
+ * on the handle's touch target pass through to the list content (keeping the
+ * item buttons under it clickable), while a long press activates the thumb
+ * drag. The touch target area itself is unchanged.
+ */
+private class LongPressFastScrollViewHelper(
+    private val recyclerView: RecyclerView
+) : FastScroller.ViewHelper {
+
+    private val touchListener = LongPressFastScrollTouchListener(recyclerView)
+
+    override fun addOnPreDrawListener(runnable: Runnable) {
+        // The library wires this hook through an ItemDecoration, not a
+        // ViewTreeObserver listener: fragments create the scroller before the
+        // RecyclerView is attached to the window, and a pre-draw listener
+        // registered on the tree observer of an unattached view is dropped
+        // when the view attaches — the scrollbar would then never show.
+        recyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun onDraw(c: Canvas, parent: RecyclerView, state: RecyclerView.State) {
+                runnable.run()
+                touchListener.syncThumbOverlay()
+            }
+        })
+    }
+
+    override fun addOnScrollChangedListener(runnable: Runnable) {
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                runnable.run()
+            }
+        })
+    }
+
+    override fun addOnTouchEventListener(predicate: Predicate<MotionEvent>) {
+        touchListener.fastScrollPredicate = predicate
+        recyclerView.addOnItemTouchListener(touchListener)
+    }
+
+    // Total content height. The library computes scrollbar enablement as
+    // getScrollRange() - view.getHeight(), so returning the scrollable delta
+    // here would double-subtract the viewport and keep the scrollbar disabled.
+    // The padding is counted here: the list's physical scroll range includes
+    // it, so excluding it would make the thumb overflow past the bottom on
+    // padded lists (while the mini player is shown) and cap the drag before
+    // the last item reaches the player's upper edge.
+    override fun getScrollRange(): Int =
+        recyclerView.computeVerticalScrollRange() +
+            recyclerView.paddingTop + recyclerView.paddingBottom
+
+    override fun getScrollOffset(): Int = recyclerView.computeVerticalScrollOffset()
+
+    override fun scrollTo(offset: Int) {
+        recyclerView.stopScroll()
+        if (touchListener.scrollerActive) {
+            val height = recyclerView.height
+            val padTop = recyclerView.paddingTop
+            val padBottom = recyclerView.paddingBottom
+            val thumb = touchListener.thumbView
+            val scrollRange = getScrollRange() - height
+            if (thumb != null && thumb.height > 0 && scrollRange > 0) {
+                val track = height - padTop - padBottom - thumb.height
+                if (track > 0) {
+                    // Absolute mapping: the thumb's centre tracks the finger,
+                    // and the scroll is proportional to the thumb's position
+                    // in its track. Unlike an incremental mapping, this never
+                    // locks the drag range to the activation point — pressing
+                    // anywhere can drag to the full bottom, and pressing at
+                    // the bottom can pull back up.
+                    val ratio = ((touchListener.lastFingerY - padTop - thumb.height / 2f) / track)
+                        .coerceIn(0f, 1f)
+                    val target = (ratio * scrollRange).toInt()
+                    recyclerView.scrollBy(0, target - recyclerView.computeVerticalScrollOffset())
+                    return
+                }
+            }
+        }
+        recyclerView.scrollBy(0, offset - recyclerView.computeVerticalScrollOffset())
+    }
+
+    override fun getPopupText(): CharSequence? {
+        val provider = recyclerView.adapter as? PopupTextProvider ?: return null
+        val position =
+            (recyclerView.layoutManager as? LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
+        return provider.getPopupText(recyclerView, position)
+    }
+
+    /**
+     * Called once the [FastScroller] has been built: wires the scroller's
+     * thumb view into the touch listener, which needs to make it visible
+     * (alpha > 0) before feeding it a synthetic DOWN, since the library only
+     * starts a drag on a visible thumb.
+     */
+    fun attach(fastScroller: FastScroller) {
+        touchListener.thumbView = try {
+            val field = FastScroller::class.java.getDeclaredField("mThumbView")
+            field.isAccessible = true
+            field.get(fastScroller) as? View
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
+
+/**
+ * Guards the fast scroller's touch input. A touch inside the handle's touch
+ * target (the right edge strip) is passed through to the list untouched: taps
+ * hit the content and swipes scroll natively, exactly as if the scroller
+ * wasn't there. Only if the finger stays put for the long-press timeout is
+ * the gesture taken over — the list's current touch is cancelled, a synthetic
+ * DOWN is fed to the fast scroller to start its drag, and from then on this
+ * listener intercepts the gesture and forwards every event to it.
+ */
+private class LongPressFastScrollTouchListener(
+    private val recyclerView: RecyclerView
+) : RecyclerView.SimpleOnItemTouchListener() {
+
+    /** Wired by [LongPressFastScrollViewHelper.addOnTouchEventListener]. */
+    var fastScrollPredicate: Predicate<MotionEvent>? = null
+
+    /** The scroller's thumb view, wired by [LongPressFastScrollViewHelper.attach]. */
+    var thumbView: View? = null
+
+    init {
+        // Put the thumb back into the list's own overlay when the list
+        // detaches, so it does not linger on the root overlay after the
+        // fragment (and its view hierarchy) is gone.
+        recyclerView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewDetachedFromWindow(v: View) {
+                if (thumbInHostOverlay) {
+                    val thumb = thumbView
+                    if (thumb != null) {
+                        // Pull it out of the root overlay first: a view with
+                        // a parent cannot be added to another overlay.
+                        v.rootView?.findViewById<ViewGroup>(R.id.mainContent)
+                            ?.overlay?.remove(thumb)
+                        recyclerView.overlay.add(thumb)
+                    }
+                    thumbInHostOverlay = false
+                }
+            }
+
+            override fun onViewAttachedToWindow(v: View) {}
+        })
+    }
+
+    /** Long-press timeout: 200ms is enough to separate a press from a drag. */
+    private val longPressTimeout = 200L
+    private val touchSlop = ViewConfiguration.get(recyclerView.context).scaledTouchSlop
+    /** Width of the activation strip at the list's right edge. */
+    private val activationZoneWidth = (40 * recyclerView.resources.displayMetrics.density).toInt()
+
+    private var downX = 0f
+    /** Press position (list coordinates) where the long press started. */
+    private var downY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
+    private var downTime = 0L
+    /** True while the long-press drag owns the gesture. */
+    internal var scrollerActive = false
+    /** Finger position (list coordinates) of the latest forwarded event. */
+    internal var lastFingerY = 0f
+    private var thumbInHostOverlay = false
+
+    private val longPressRunnable = Runnable { activateScroller() }
+
+    override fun onInterceptTouchEvent(recyclerView: RecyclerView, e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (isInActivationZone(e.x, e.y)) {
+                    downX = e.x
+                    downY = e.y
+                    lastX = e.x
+                    lastY = e.y
+                    downTime = e.downTime
+                    scrollerActive = false
+                    recyclerView.postDelayed(longPressRunnable, longPressTimeout)
+                }
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                if (scrollerActive) return true
+                // Not activated: keep the touch flowing through untouched and
+                // only cancel the long-press watch once the finger actually
+                // moves beyond the touch slop (i.e. the user is scrolling).
+                lastX = e.x
+                lastY = e.y
+                if (abs(e.x - downX) > touchSlop || abs(e.y - downY) > touchSlop) {
+                    recyclerView.removeCallbacks(longPressRunnable)
+                }
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (scrollerActive) return true
+                recyclerView.removeCallbacks(longPressRunnable)
+            }
+        }
+        return false
+    }
+
+    override fun onTouchEvent(recyclerView: RecyclerView, e: MotionEvent) {
+        if (!scrollerActive) return
+        if (e.actionMasked == MotionEvent.ACTION_MOVE) {
+            lastFingerY = e.y
+        }
+        fastScrollPredicate?.test(e)
+        if (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) {
+            scrollerActive = false
+        }
+    }
+
+    /**
+     * The activation region is a fixed-width strip at the list's right edge.
+     * Anything outside of it is not handled by the fast scroller, so it keeps
+     * working untouched.
+     */
+    private fun isInActivationZone(x: Float, y: Float): Boolean {
+        if (!recyclerView.isAttachedToWindow) return false
+        val right = recyclerView.width - recyclerView.paddingRight
+        if (x > right || x < right - activationZoneWidth) return false
+        return y >= recyclerView.paddingTop && y <= recyclerView.height - recyclerView.paddingBottom
+    }
+
+    /**
+     * Keeps the thumb drawn on top of the bottom bars. The thumb normally
+     * lives in the list's overlay, which draws below the bottom navigation
+     * bar and the mini player, so it ends up hidden behind them when the list
+     * is scrolled to its end. Re-home it in the root content's overlay —
+     * drawn above every bottom bar — and translate its position from the
+     * list's coordinates into the root's, leaving the thumb free to track
+     * the list all the way down while staying visible.
+     */
+    fun syncThumbOverlay() {
+        val thumb = thumbView ?: return
+        if (thumb.height == 0) return
+        val host = recyclerView.rootView.findViewById<ViewGroup>(R.id.mainContent) ?: return
+        if (!thumbInHostOverlay) {
+            recyclerView.overlay.remove(thumb)
+            host.overlay.add(thumb)
+            thumbInHostOverlay = true
+        }
+        // The library re-lays the thumb out each draw at the list's right
+        // edge; detect that state (list coordinates) and translate it into
+        // the host's coordinates. On frames where the library skipped the
+        // layout (scrollbar disabled) the thumb keeps the translated
+        // position, so only translate when it was just re-laid out.
+        val libraryLeft = if (recyclerView.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+            recyclerView.paddingLeft
+        } else {
+            recyclerView.width - recyclerView.paddingRight - thumb.width
+        }
+        if (thumb.left != libraryLeft) return
+        // Keep the thumb inside the list's top padding. The bottom is left
+        // free: while dragging, scrollTo() caps the scroll so the thumb stops
+        // on the player's upper edge (or the navigation bar's without the
+        // player), and normal scrolling tracks the content all the way down.
+        if (thumb.top < recyclerView.paddingTop) {
+            thumb.offsetTopAndBottom(recyclerView.paddingTop - thumb.top)
+        }
+        val loc = IntArray(2)
+        recyclerView.getLocationInWindow(loc)
+        val rvX = loc[0]
+        val rvY = loc[1]
+        host.getLocationInWindow(loc)
+        thumb.offsetLeftAndRight(rvX - loc[0])
+        thumb.offsetTopAndBottom(rvY - loc[1])
+        val navView = host.findViewById<View>(R.id.navigationView)
+        if (navView != null) {
+            val navT = navView.top
+            // The bottom padding must make the scroll range match the visible
+            // area, not the list's own height. Two things shorten it:
+            //  - the sheet (mini player) floating over the list's bottom, and
+            //  - the app bar pushing the list down when expanded, so the
+            //    list's bottom edge dips behind the bottom bars and the last
+            //    item can never scroll into view above them.
+            val sheet = host.findViewById<View>(R.id.sheet_view)
+            val sheetVisTop = if (sheet != null) {
+                (sheet.top - sheet.translationY).toInt()
+            } else navT
+            val playerOverlap = (navT - sheetVisTop).coerceAtLeast(0)
+            val appBarGap = (rvY + recyclerView.height - navT).coerceAtLeast(0)
+            val newPadB = playerOverlap + appBarGap
+            if (recyclerView.paddingBottom != newPadB) {
+                recyclerView.setPadding(
+                    recyclerView.paddingLeft,
+                    recyclerView.paddingTop,
+                    recyclerView.paddingRight,
+                    newPadB
+                )
+            }
+            // The list shifts briefly while the app bar animates; do not let
+            // that push the thumb into the bottom bars. With the padding
+            // above, the thumb's real bottom never exceeds the navigation
+            // bar's upper edge anyway, so this only corrects the transient
+            // shift.
+            if (thumb.bottom > navT) {
+                thumb.offsetTopAndBottom(navT - thumb.bottom)
+            }
+        }
+    }
+
+    private fun activateScroller() {
+        if (scrollerActive || !recyclerView.isAttachedToWindow) return
+        // The finger is resting on the handle region: take the gesture over.
+        // First cancel the list's current touch (dropping any pressed state
+        // on the item under the finger) while this listener still passes
+        // events through, so the cancel reaches the list content.
+        val cancel = MotionEvent.obtain(
+            downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, lastX, lastY, 0
+        )
+        recyclerView.dispatchTouchEvent(cancel)
+        cancel.recycle()
+        // The library only starts a drag on a visible thumb (alpha > 0), and
+        // the thumb fades out when the list is idle.
+        thumbView?.alpha = 1f
+        scrollerActive = true
+        lastFingerY = lastY
+        // Feed the scroller a synthetic DOWN at the current touch position so
+        // it enters its drag state; the real events that follow are
+        // intercepted and forwarded to it.
+        val down = MotionEvent.obtain(
+            downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_DOWN, lastX, lastY, 0
+        )
+        fastScrollPredicate?.test(down)
+        down.recycle()
+    }
 }
 
 /**

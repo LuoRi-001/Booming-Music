@@ -115,6 +115,11 @@
 -keep interface coil3.fetch.Fetcher { *; }
 -keep interface coil3.fetch.Fetcher$Factory { *; }
 
+# Keep the fast scroller thumb view accessible via reflection (long-press scroller activation)
+-keepclassmembers class me.zhanghai.android.fastscroll.FastScroller {
+    private android.view.View mThumbView;
+}
+
 # Hide an annoying compilation warning
 # http://stackoverflow.com/questions/3308010/what-is-the-ignoring-innerclasses-attribute-warning-output-during-compilation
 -keepattributes EnclosingMethod

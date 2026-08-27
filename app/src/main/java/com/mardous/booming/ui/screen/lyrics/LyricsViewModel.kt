@@ -324,8 +324,10 @@ class LyricsViewModel(
         val showTranslation = preferences.getBoolean(Key.SHOW_TRANSLATION, true)
         val showTransliteration = preferences.getBoolean(Key.SHOW_TRANSLITERATION, false)
         val resumeOnSeek = preferences.getBoolean(Key.RESUME_ON_SEEK, false)
-        val blurEffect = !background.isNone && preferences.getBoolean(Key.BLUR_EFFECT, false)
-        val shadowEffect = !background.isNone && preferences.getBoolean(Key.SHADOW_EFFECT, false)
+        // 文字模糊/阴影独立于背景效果:Player 模式背景恒为 None,若要求
+        // !background.isNone 则播放页歌词的模糊/阴影永远不生效
+        val blurEffect = preferences.getBoolean(Key.BLUR_EFFECT, false)
+        val shadowEffect = preferences.getBoolean(Key.SHADOW_EFFECT, false)
         val fontFamily: FontFamily = if (preferences.getBoolean(Key.USE_CUSTOM_FONT, false)) {
             try {
                 preferences.getString(Key.SELECTED_CUSTOM_FONT, null)

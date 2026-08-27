@@ -180,7 +180,10 @@ class PlayerViewModel(
                     // restored.
                     if (queue.isNotEmpty()) {
                         _currentSongFlow.value = queue.getOrElse(position.current) { Song.emptySong }
-                        _nextSongFlow.value = queue.getOrElse(position.next) { Song.emptySong }
+                        // 队列末尾时下一首显示队列第一首(手动循环,不依赖 repeatMode)
+                        _nextSongFlow.value = queue.getOrElse(position.next) {
+                            queue.firstOrNull() ?: Song.emptySong
+                        }
                     }
                 }
                 .launchIn(viewModelScope)
@@ -362,7 +365,15 @@ class PlayerViewModel(
     }
 
     fun seekToNext() {
-        mediaController?.seekToNext()
+        val controller = mediaController ?: return
+        val queueList = queue
+        // 顺序/随机播放到队列末尾时,手动循环到队列第一首
+        // (shuffle 时 queue 就是随机播放顺序,第一首 = 随机列表第一首)
+        if (queueList.isNotEmpty() && position.next >= queueList.size) {
+            controller.seekToDefaultPosition(position.getIndexForPosition(0))
+        } else {
+            controller.seekToNext()
+        }
     }
 
     fun seekToPrevious() {
