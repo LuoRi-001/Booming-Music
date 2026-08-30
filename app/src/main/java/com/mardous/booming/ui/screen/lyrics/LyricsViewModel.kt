@@ -376,14 +376,66 @@ class LyricsViewModel(
             progressiveColoring = progressiveColoring,
             backgroundEffect = background,
             blurEffect = blurEffect,
+            blurLevel = preferences.getInt(Key.BLUR_LEVEL, 1),
             shadowEffect = shadowEffect,
             showTranslation = showTranslation,
             showTransliteration = showTransliteration,
             resumeOnSeek = resumeOnSeek,
             syncedStyle = syncedStyle,
             unsyncedStyle = unsyncedStyle,
-            lineSpacing = ((lineSpacing / 2) + 8).coerceIn(8, 48)
+            lineSpacing = ((lineSpacing / 2) + 8).coerceIn(8, 48),
+            offsetDefaultMs = preferences.getLong(Key.DEFAULT_OFFSET_MS, 0),
+            offsetBluetoothMs = preferences.getLong(Key.BLUETOOTH_OFFSET_MS, 0)
         )
+    }
+
+    // 弹窗行距滑杆的初始值:settings.lineSpacing 已换算成 dp,这里暴露原始偏好值(1~100)
+    val rawLineSpacing: Int
+        get() = preferences.getInt(Key.LINE_SPACING, 40)
+
+    // 歌词效果弹窗的写入入口:写 SharedPreferences 后由
+    // onSharedPreferenceChanged 重建 settings flow,UI 自动刷新
+    fun setSyncedFontSize(size: Int) {
+        preferences.edit {
+            putInt(Key.SYNCED_FONT_SIZE_PLAYER, size)
+            putInt(Key.SYNCED_FONT_SIZE_FULL, size)
+        }
+    }
+
+    fun setSyncedBoldFont(bold: Boolean) {
+        preferences.edit { putBoolean(Key.SYNCED_BOLD_FONT, bold) }
+    }
+
+    fun setLineSpacing(spacing: Int) {
+        preferences.edit { putInt(Key.LINE_SPACING, spacing) }
+    }
+
+    fun setShowTranslation(show: Boolean) {
+        preferences.edit { putBoolean(Key.SHOW_TRANSLATION, show) }
+    }
+
+    fun setCenterHorizontally(center: Boolean) {
+        preferences.edit { putBoolean(Key.CENTER_HORIZONTALLY, center) }
+    }
+
+    fun setProgressiveColoring(enable: Boolean) {
+        preferences.edit { putBoolean(Key.PROGRESSIVE_COLORING, enable) }
+    }
+
+    fun setBlurEffect(enable: Boolean) {
+        preferences.edit { putBoolean(Key.BLUR_EFFECT, enable) }
+    }
+
+    fun setBlurLevel(level: Int) {
+        preferences.edit { putInt(Key.BLUR_LEVEL, level.coerceIn(0, 3)) }
+    }
+
+    fun setDefaultOffsetMs(offset: Long) {
+        preferences.edit { putLong(Key.DEFAULT_OFFSET_MS, offset) }
+    }
+
+    fun setBluetoothOffsetMs(offset: Long) {
+        preferences.edit { putLong(Key.BLUETOOTH_OFFSET_MS, offset) }
     }
 
     private fun isLyricsDownloadEnabled(): Boolean {
@@ -405,9 +457,12 @@ class LyricsViewModel(
             Key.RESUME_ON_SEEK,
             Key.BACKGROUND_EFFECT,
             Key.BLUR_EFFECT,
+            Key.BLUR_LEVEL,
             Key.SHADOW_EFFECT,
             Key.SYNCED_BOLD_FONT,
-            Key.UNSYNCED_BOLD_FONT -> {
+            Key.UNSYNCED_BOLD_FONT,
+            Key.DEFAULT_OFFSET_MS,
+            Key.BLUETOOTH_OFFSET_MS -> {
                 _playerLyricsViewSettings.value = createViewSettings(LyricsViewMode.Player)
                 _fullLyricsViewSettings.value = createViewSettings(LyricsViewMode.Full)
             }

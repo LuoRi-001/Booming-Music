@@ -45,6 +45,11 @@ class MainActivity : AbsSlidingMusicPanelActivity(), MediaController.Listener {
         super.onCreate(savedInstanceState)
         title = null
 
+        // Touch the library ViewModel now so its init block starts the home
+        // screen prefetch (suggestions + songs) while the UI is still
+        // inflating, instead of when HomeFragment's view is created.
+        libraryViewModel
+
         updateTabs()
         setupNavigationController()
 

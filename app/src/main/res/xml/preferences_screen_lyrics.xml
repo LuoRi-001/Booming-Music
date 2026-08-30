@@ -207,6 +207,20 @@
             app:isPreferenceVisible="@bool/blur_supported"
             app:key="lyrics_text_blur" />
 
+        <SeekBarPreference
+            app:iconSpaceReserved="true"
+            app:title="@string/lyrics_blur_level_title"
+            app:summary="@string/lyrics_blur_level_summary"
+            android:max="@integer/lyrics_blur_level_max"
+            app:min="@integer/lyrics_blur_level_min"
+            app:defaultValue="1"
+            app:showSeekBarValue="true"
+            app:layout="@layout/list_item_view_bottom_widget"
+            app:widgetLayout="@layout/preference_seekbar"
+            app:dependency="lyrics_text_blur"
+            app:isPreferenceVisible="@bool/blur_supported"
+            app:key="lyrics_blur_level"/>
+
         <SwitchPreferenceCompat
             app:iconSpaceReserved="true"
             app:title="@string/lyrics_shadow_effect_title"

@@ -689,7 +689,15 @@
     <string name="lyrics_background_gradient">Gradient</string>
     <string name="lyrics_background_blur">Blur</string>
     <string name="lyrics_blur_effect_title">Blur effect</string>
+    <string name="action_lyrics_effects">Lyrics effects</string>
+    <string name="lyrics_effects_font_title">Font</string>
+    <string name="lyrics_font_size_title">Lyrics size</string>
+    <string name="lyrics_offset_title">Lyrics offset</string>
+    <string name="lyrics_default_offset_title">Default offset</string>
+    <string name="lyrics_bluetooth_offset_title">Bluetooth offset</string>
     <string name="lyrics_blur_effect_summary">Blur the lyrics lines adjacent to the current one.</string>
+    <string name="lyrics_blur_level_title">Blur intensity</string>
+    <string name="lyrics_blur_level_summary">Adjust the blur strength of non-active lyrics lines. Level 0 disables the blur.</string>
     <string name="lyrics_shadow_effect_title">Shadow effect</string>
     <string name="lyrics_shadow_effect_summary">Adds a shadow under the current line to improve readability.</string>
     <string name="lyrics_progressive_coloring_title">Progressive lyrics coloring</string>
@@ -736,6 +744,8 @@
     <string name="open_on_play_summary">Expand the Now Playing panel automatically after start playing a song.</string>
     <string name="squiggly_seek_bar_title">Squiggly seek bar</string>
     <string name="squiggly_seek_bar_summary">Enable a wavy seek bar instead of the default slider.</string>
+    <string name="bar_seek_bar_title">Bar progress bar</string>
+    <string name="bar_seek_bar_summary">Use a slim bar-style seek bar with a round position thumb. Takes precedence over the squiggly seek bar.</string>
     <string name="scrolling_text_title">Enable scrolling text</string>
     <string name="scrolling_text_summary">Scrolls song titles when too long to fit. May use slightly more battery.</string>
     <string name="extra_controls_title">Extra controls</string>

@@ -13,10 +13,13 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
 import com.mardous.booming.databinding.FragmentHomeBinding
 import com.mardous.booming.R
 import com.mardous.booming.core.model.shuffle.OpenShuffleMode
@@ -59,6 +62,12 @@ import com.mardous.booming.ui.component.menu.onSongMenu
 import com.mardous.booming.ui.component.menu.onSongsMenu
 import com.mardous.booming.ui.screen.library.ReloadType
 import com.mardous.booming.ui.theme.BoomingMusicTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * @author Christians M. A. (mardous)
@@ -97,6 +106,16 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     private var allCachedSongs: List<Song> = emptyList()
     private var isSongsLoaded = false
     private var hasSuggestionsLoaded = false
+
+    // Cold-start rendezvous: the suggestions sections and the recommendations
+    // collage ride two parallel pipelines (suggestions query vs songs query +
+    // cover pre-decode) that finish a frame apart, which made the blocks pop
+    // in one after another. Whichever finishes first holds here until both
+    // are present, then everything is published from a single main-thread
+    // message and lands in the same frame.
+    private var pendingResult: SuggestedResult? = null
+    private var pendingPicks: List<Song>? = null
+    private var contentPublished = false
 
     // Warm accent color for shuffle button — picked once per fragment lifetime
     private val warmShuffleColor: Long = WARM_COLORS.random()
@@ -175,11 +194,15 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 } else {
                     binding.progressIndicator.hide()
                 }
-                homeAdapter?.dataSet = result.data
-                hasSuggestionsLoaded = true
-                if (result.data.isNotEmpty()) {
-                    this@HomeFragment.statsFooterAdapter?.isVisible = true
-                    restoreScrollPosition()
+                if (result.state == SuggestedResult.State.Ready) {
+                    if (contentPublished) {
+                        // Later refreshes (e.g. the library changed) publish
+                        // directly — the first frame already happened.
+                        publishResultNow(result)
+                    } else {
+                        pendingResult = result
+                        publishHomeContent()
+                    }
                 }
             }
         }.also { liveData ->
@@ -227,7 +250,10 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     private fun loadRecommendations() {
         if (!isSongsLoaded) {
-            libraryViewModel.allSongs().observe(viewLifecycleOwner) { allSongs ->
+            // Observe the shared songs LiveData instead of issuing a fresh
+            // allSongs() query: LibraryViewModel prefetches it at creation,
+            // so this usually delivers during the first frame.
+            libraryViewModel.getSongs().observe(viewLifecycleOwner) { allSongs ->
                 allCachedSongs = allSongs
                 isSongsLoaded = true
                 pickRandomSongs()
@@ -238,10 +264,91 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     }
 
     private fun pickRandomSongs() {
-        if (allCachedSongs.isNotEmpty()) {
-            songState.value = allCachedSongs.shuffled().take(5)
+        if (allCachedSongs.isEmpty()) {
+            // No songs at all: the collage can't render, but the sections
+            // must not be held waiting for it.
+            onPicksReady(emptyList())
+            return
+        }
+        val picks = allCachedSongs.shuffled().take(5)
+        viewLifecycleOwner.lifecycleScope.launch {
+            // Pre-decode the covers before the section becomes visible: it
+            // otherwise composes with the titles only, and the covers fade in
+            // a few frames later once their requests resolve. The requests
+            // below use the same key and size as MediaImage's, so the section
+            // renders from the memory cache with titles and covers in the
+            // same frame.
+            val context = requireContext()
+            val coverPx = (CARD_SIZE_DP * resources.displayMetrics.density).roundToInt()
+            val loader = SingletonImageLoader.get(context)
+            withContext(Dispatchers.IO) {
+                coroutineScope {
+                    picks.map { song ->
+                        launch {
+                            runCatching {
+                                loader.execute(
+                                    ImageRequest.Builder(context)
+                                        .data(song)
+                                        .size(coverPx, coverPx)
+                                        .build()
+                                )
+                            }
+                        }
+                    }.joinAll()
+                }
+            }
+            onPicksReady(picks)
+        }
+    }
+
+    private fun onPicksReady(picks: List<Song>) {
+        if (contentPublished) {
+            // Re-entry refresh: the section is already on screen, just swap
+            // the picks (their covers were pre-decoded above).
+            songState.value = picks
             refreshKey.value = System.nanoTime()
             binding.recommendationsSection.visibility = View.VISIBLE
+        } else {
+            pendingPicks = picks
+            publishHomeContent()
+        }
+    }
+
+    private fun publishHomeContent() {
+        val result = pendingResult ?: return
+        val picks = pendingPicks ?: return
+        pendingResult = null
+        pendingPicks = null
+        contentPublished = true
+        // Step 1: feed the collage's composition while its ComposeView is
+        // still GONE. The new content only lands on the next frame's
+        // recomposition tick — a GONE ComposeView composes but never
+        // measures.
+        songState.value = picks
+        refreshKey.value = System.nanoTime()
+        // Step 2, one frame later: reveal the collage and publish the
+        // sections from the same message, so both draw in the same
+        // traversal. Publishing the sections in step 1's message would let
+        // them render a frame before the collage's recomposition had been
+        // applied, which read as the collage "popping in" late.
+        val section = binding.recommendationsSection
+        section.post {
+            if (_binding == null) return@post
+            if (picks.isNotEmpty()) {
+                section.visibility = View.VISIBLE
+            }
+            publishResultNow(result)
+        }
+    }
+
+    private fun publishResultNow(result: SuggestedResult) {
+        hasSuggestionsLoaded = true
+        homeAdapter?.dataSet = result.data
+        // Reveal the stats card together with the rest of the content (its
+        // visibility setter no-ops when nothing changed).
+        statsFooterAdapter?.isVisible = true
+        if (result.data.isNotEmpty()) {
+            restoreScrollPosition()
         }
     }
 

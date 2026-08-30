@@ -3,11 +3,36 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.mardous.booming.ui.component.views.AlbumCoverViewPager
-        android:id="@+id/view_pager"
+    <!--
+        Cover + bottom blend composite. The blend lives INSIDE this container so
+        it masks the cover's bottom edge before the crossfade alpha is applied:
+        fading the container fades cover and blend as one, so the cover's hard
+        bottom edge can never flash mid-transition.
+    -->
+    <FrameLayout
+        android:id="@+id/coverBlendContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:overScrollMode="@integer/overScrollMode" />
+        android:layout_height="match_parent">
+
+        <com.mardous.booming.ui.component.views.AlbumCoverViewPager
+            android:id="@+id/view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:overScrollMode="@integer/overScrollMode" />
+
+        <!--
+            Bottom blend for player styles that fade the cover into the controls
+            area (gradient style). Hidden by default: the style enables it and
+            tints it with its surface color. Sits above the cover but below the
+            lyrics view, so it never covers the lyrics toggle button.
+        -->
+        <View
+            android:id="@+id/coverBottomBlend"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/coverLyricsFragment"

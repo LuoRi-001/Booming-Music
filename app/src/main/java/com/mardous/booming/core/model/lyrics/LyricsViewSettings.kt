@@ -13,13 +13,18 @@ class LyricsViewSettings(
     val progressiveColoring: Boolean,
     val backgroundEffect: BackgroundEffect,
     val blurEffect: Boolean,
+    // 模糊程度档位 0~3:0 无模糊,1 为默认强度,数值越大非当前行越模糊
+    val blurLevel: Int = 1,
     val shadowEffect: Boolean,
     val showTranslation: Boolean,
     val showTransliteration: Boolean,
     val resumeOnSeek: Boolean,
     val syncedStyle: TextStyle,
     val unsyncedStyle: TextStyle,
-    val lineSpacing: Int
+    val lineSpacing: Int,
+    // 用户偏移(ms):正值让歌词提前出现;连接蓝牙音频时用 bluetoothOffsetMs
+    val offsetDefaultMs: Long = 0,
+    val offsetBluetoothMs: Long = 0
 ) {
 
     enum class Mode {
@@ -53,6 +58,7 @@ class LyricsViewSettings(
             const val SHOW_TRANSLITERATION = "lyrics_show_transliteration"
             const val RESUME_ON_SEEK = "lyrics_resume_on_seek"
             const val BLUR_EFFECT = "lyrics_text_blur"
+            const val BLUR_LEVEL = "lyrics_blur_level"
             const val SHADOW_EFFECT = "lyrics_text_shadow"
             const val SYNCED_BOLD_FONT = "synced_lyrics_bold_font"
             const val UNSYNCED_BOLD_FONT = "unsynced_lyrics_bold_font"
@@ -60,6 +66,8 @@ class LyricsViewSettings(
             const val UNSYNCED_FONT_SIZE_PLAYER = "unsynced_lyrics_font_size_player"
             const val SYNCED_FONT_SIZE_FULL = "synced_lyrics_font_size_full"
             const val UNSYNCED_FONT_SIZE_FULL = "unsynced_lyrics_font_size_full"
+            const val DEFAULT_OFFSET_MS = "lyrics_default_offset_ms"
+            const val BLUETOOTH_OFFSET_MS = "lyrics_bluetooth_offset_ms"
         }
     }
 }

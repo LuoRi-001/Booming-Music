@@ -50,6 +50,7 @@ import com.mardous.booming.ui.screen.MainActivity
 import com.mardous.booming.ui.screen.player.PlayerAnimator
 import com.mardous.booming.ui.screen.player.PlayerViewModel
 import com.mardous.booming.util.ANIMATE_PLAYER_CONTROL
+import com.mardous.booming.util.BAR_SEEK_BAR
 import com.mardous.booming.util.DISPLAY_ALBUM_TITLE
 import com.mardous.booming.util.DISPLAY_EXTRA_INFO
 import com.mardous.booming.util.ENABLE_SCROLLING_TEXT
@@ -232,6 +233,7 @@ abstract class AbsPlayerControlsFragment(@LayoutRes layoutRes: Int) : Fragment(l
     }
 
     private fun setUpProgressSlider() {
+        musicSlider?.setUseBarStyle(Preferences.barSeekBar)
         musicSlider?.setUseSquiggly(Preferences.squigglySeekBar)
         musicSlider?.setListener(object : MusicSlider.Listener {
             override fun onProgressChanged(slider: MusicSlider, progress: Int, fromUser: Boolean) {
@@ -346,6 +348,9 @@ abstract class AbsPlayerControlsFragment(@LayoutRes layoutRes: Int) : Fragment(l
             SQUIGGLY_SEEK_BAR -> {
                 musicSlider?.setUseSquiggly(sharedPreferences.getBoolean(key, false))
                 musicSlider?.animateSquigglyProgress = playerViewModel.isPlaying
+            }
+            BAR_SEEK_BAR -> {
+                musicSlider?.setUseBarStyle(sharedPreferences.getBoolean(key, false))
             }
             ENABLE_SCROLLING_TEXT -> {
                 val marquee = sharedPreferences.getBoolean(key, false)

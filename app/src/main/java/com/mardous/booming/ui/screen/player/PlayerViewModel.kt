@@ -280,6 +280,16 @@ class PlayerViewModel(
             // Update the queue with the valid songs and current positions.
             _queueFlow.value = songs
             _positionFlow.value = queuePosition
+            // Publish the current/next song right away: the debounced combine
+            // would otherwise hold back the restored player UI (mini player
+            // title/cover) for QUEUE_DEBOUNCE after the queue resolves. The
+            // combine still runs and re-publishes the same values.
+            if (songs.isNotEmpty()) {
+                _currentSongFlow.value = songs.getOrElse(queuePosition.current) { Song.emptySong }
+                _nextSongFlow.value = songs.getOrElse(queuePosition.next) {
+                    songs.firstOrNull() ?: Song.emptySong
+                }
+            }
         }
     }
 

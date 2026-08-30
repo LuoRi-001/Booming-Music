@@ -27,19 +27,7 @@
             app:layout_constraintStart_toStartOf="parent"
             tools:layout="@layout/fragment_album_cover"/>
 
-        <!-- 2. Bottom gradient mask: overlays the bottom of the cover -->
-        <View
-            android:id="@+id/mask"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:background="@drawable/shadow_up_gradient"
-            app:layout_constraintBottom_toBottomOf="@id/playerAlbumCoverFragment"
-            app:layout_constraintEnd_toEndOf="@id/playerAlbumCoverFragment"
-            app:layout_constraintStart_toStartOf="@id/playerAlbumCoverFragment"
-            app:layout_constraintHeight_percent="0.2"
-            tools:backgroundTint="?colorSurface"/>
-
-        <!-- 3. Top gradient mask: transparent backdrop for toolbar text -->
+        <!-- 2. Top gradient mask: transparent backdrop for toolbar text -->
         <View
             android:id="@+id/topMask"
             android:layout_width="match_parent"
@@ -50,7 +38,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-        <!-- 4. Toolbar: transparent overlay with next song info, floats above cover -->
+        <!-- 3. Toolbar: transparent overlay with next song info, floats above cover -->
         <LinearLayout
             android:id="@+id/toolbarContainer"
             android:layout_width="match_parent"
@@ -119,7 +107,7 @@
 
         </LinearLayout>
 
-        <!-- 5. Playback controls at the bottom -->
+        <!-- 4. Playback controls at the bottom -->
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/playbackControlsFragment"
             android:name="com.mardous.booming.ui.screen.player.styles.gradientstyle.GradientPlayerControlsFragment"

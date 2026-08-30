@@ -16,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.DpSize
 import coil3.compose.AsyncImagePainter.State
 import coil3.compose.LocalPlatformContext
 import coil3.compose.rememberAsyncImagePainter
@@ -30,10 +32,12 @@ fun MediaImage(
     model: Any?,
     placeholderIcon: Int = R.drawable.ic_music_note_24dp,
     contentDescription: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fixedSize: DpSize? = null
 ) {
     val sizeResolver = rememberConstraintsSizeResolver()
     val platformContext = LocalPlatformContext.current
+    val density = LocalDensity.current
 
     // Use a stable key derived from the model's identity (Song.id for Song models)
     // This prevents the ImageRequest from being recreated on every recomposition,
@@ -44,12 +48,28 @@ fun MediaImage(
         else -> model
     }
 
-    val imageRequest = remember(stableKey) {
-        ImageRequest.Builder(platformContext)
-            .data(model)
-            .size(sizeResolver)
-            .build()
+    val imageRequest = remember(stableKey, fixedSize, density) {
+        ImageRequest.Builder(platformContext).apply {
+            data(model)
+            if (fixedSize != null) {
+                // A fixed size lets the request start right at composition —
+                // the constraints-based resolver below suspends until the
+                // image is measured, so a cover whose container starts GONE
+                // only begins loading once it first becomes visible, trailing
+                // its text by frames.
+                size(
+                    with(density) { fixedSize.width.roundToPx() },
+                    with(density) { fixedSize.height.roundToPx() }
+                )
+            } else {
+                size(sizeResolver)
+            }
+        }.build()
     }
+
+    // With a fixed size there is no measured size to wait for, and the
+    // resolver modifier must not be attached (nothing would ever measure it).
+    val imageModifier = if (fixedSize != null) modifier else modifier.then(sizeResolver)
 
     // Key the painter by the model identity so a song change always rebuilds
     // it fresh. Without this, the reused painter's set_input() sees an
@@ -80,13 +100,13 @@ fun MediaImage(
                 // it is unmounted while loading (as it was before), a restart
                 // issued in that window would suspend forever on size(),
                 // leaving the placeholder stuck with no fetch ever starting.
-                modifier = modifier.then(sizeResolver)
+                modifier = imageModifier
             )
         }
         currentState is State.Loading -> {
             MediaPlaceholder(
                 iconRes = placeholderIcon,
-                modifier = modifier.then(sizeResolver)
+                modifier = imageModifier
             )
         }
         else -> {
@@ -94,7 +114,7 @@ fun MediaImage(
                 painter = painter,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
-                modifier = modifier.then(sizeResolver)
+                modifier = imageModifier
             )
         }
     }

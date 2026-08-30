@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mardous.booming.R
@@ -44,7 +45,8 @@ import com.mardous.booming.data.model.Song
 import com.mardous.booming.ui.component.compose.MediaImage
 import kotlin.random.Random
 
-private val CARD_SIZE_DP = 128f
+// Shared with HomeFragment, which pre-decodes the covers at this exact size
+internal const val CARD_SIZE_DP = 128f
 
 // 5 regions where cards can appear
 private val REGION_CENTERS = listOf(
@@ -183,7 +185,10 @@ fun YourRecommendationsSection(
                     MediaImage(
                         model = song,
                         contentDescription = song.title,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        // Matches the pre-decode requests HomeFragment issues,
+                        // so the cover is already in the memory cache here.
+                        fixedSize = DpSize(CARD_SIZE_DP.dp, CARD_SIZE_DP.dp)
                     )
 
                     // Title overlay

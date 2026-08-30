@@ -178,6 +178,9 @@ object Preferences : KoinComponent {
     val squigglySeekBar: Boolean
         get() = preferences.getBoolean(SQUIGGLY_SEEK_BAR, false)
 
+    val barSeekBar: Boolean
+        get() = preferences.getBoolean(BAR_SEEK_BAR, false)
+
     val swipeDownToDismiss: Boolean
         get() = preferences.getBoolean(SWIPE_DOWN_TO_DISMISS, false)
 
@@ -576,6 +579,7 @@ const val OPEN_ON_PLAY = "open_on_play"
 const val ADD_EXTRA_CONTROLS = "add_extra_controls"
 const val ADAPTIVE_CONTROLS = "adaptive_controls"
 const val SQUIGGLY_SEEK_BAR = "squiggly_seek_bar"
+const val BAR_SEEK_BAR = "bar_seek_bar"
 const val SWIPE_DOWN_TO_DISMISS = "swipe_down_to_dismiss"
 const val LYRICS_ON_COVER = "lyrics_on_cover"
 const val SWIPE_ON_COVER = "swipe_on_cover"

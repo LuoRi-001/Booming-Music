@@ -17,11 +17,10 @@
 
 package com.mardous.booming.ui.screen.player.styles.gradientstyle
 
-import android.animation.AnimatorSet
-import android.animation.ObjectAnimator
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Menu
 import android.view.View
@@ -34,6 +33,7 @@ import androidx.core.view.updatePadding
 import com.mardous.booming.R
 import com.mardous.booming.coil.DEFAULT_SONG_IMAGE
 import com.mardous.booming.coil.songImage
+import com.mardous.booming.core.model.PaletteColor
 import com.mardous.booming.core.model.action.NowPlayingAction
 import com.mardous.booming.core.model.player.*
 import com.mardous.booming.core.model.theme.NowPlayingScreen
@@ -69,6 +69,9 @@ class GradientPlayerFragment : AbsPlayerFragment(R.layout.fragment_gradient_play
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentGradientPlayerBinding.bind(view)
         errorDrawable = view.context.getPlaceholderDrawable(DEFAULT_SONG_IMAGE)
+        // Runs in a post because the child cover fragment's view is not created
+        // until after this fragment's onViewCreated.
+        view?.post { applyCoverBlend() }
         setupListeners()
         setupNextSongVisibility()
         setupBackPress()
@@ -112,15 +115,37 @@ class GradientPlayerFragment : AbsPlayerFragment(R.layout.fragment_gradient_play
             val coverFrag = whichFragment<CoverPagerFragment>(R.id.playerAlbumCoverFragment)
             if (coverFrag.isLyricsViewVisible) {
                 coverFrag.forceHideLyricsView()
-                binding.mask.alpha = 1f
             }
             // 二次检查：fragment状态可能在视图绘制后被异步恢复
             view?.postDelayed({
                 if (coverFrag.isLyricsViewVisible) {
                     coverFrag.forceHideLyricsView()
-                    binding.mask.alpha = 1f
                 }
             }, 200)
+        }
+    }
+
+    /**
+     * Cover bottom blend: a full-height gradient view inside the cover layout,
+     * sitting above the cover but below the lyrics view (and its toggle button).
+     * Only the bottom 20% fades to a color, tinted with the surface color like
+     * every other player surface, and it fades together with the cover because
+     * both share the crossfade container. Idempotent, and safe to call
+     * repeatedly: it is re-asserted on every palette delivery so song changes
+     * cannot leave the cover without it.
+     */
+    private fun applyCoverBlend() {
+        whichFragment<CoverPagerFragment>(R.id.playerAlbumCoverFragment).coverBottomBlendView?.let { blend ->
+            if (blend.background == null) {
+                blend.background = GradientDrawable().apply {
+                    orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                    setColors(
+                        intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT, Color.BLACK),
+                        floatArrayOf(0f, 0.8f, 1f)
+                    )
+                }
+            }
+            blend.isVisible = true
         }
     }
 
@@ -149,9 +174,6 @@ class GradientPlayerFragment : AbsPlayerFragment(R.layout.fragment_gradient_play
                     // hideLyrics(true)有"!isShowLyricsOnCover || isAnimatingLyrics"守卫，
                     // 在状态不一致或动画进行中时会被跳过，导致返回键直接退出播放页。
                     coverFrag.forceHideLyricsView()
-                    // 手动恢复mask alpha：forceHideLyricsView内部虽然会触发
-                    // onLyricsVisibilityChange回调，但不能保证AnimatorSet启动了。
-                    binding.mask.alpha = 1f
                 } else {
                     isEnabled = false
                     requireActivity().onBackPressedDispatcher.onBackPressed()
@@ -193,18 +215,31 @@ class GradientPlayerFragment : AbsPlayerFragment(R.layout.fragment_gradient_play
         _binding = null
     }
 
+    override fun onColorChanged(color: PaletteColor) {
+        super.onColorChanged(color)
+        // Palette delivery is the reliable per-song hook (every song change ends
+        // with a new palette), so re-assert the blend here: the cover fragment's
+        // view can be recreated while the player stays open.
+        applyCoverBlend()
+    }
+
     override fun getTintTargets(scheme: PlayerColorScheme): List<PlayerTintTarget> {
-        val oldMaskColor = binding.mask.backgroundTintList?.defaultColor
-            ?: Color.TRANSPARENT
         val oldTopMaskColor = binding.topMask.backgroundTintList?.defaultColor
             ?: Color.TRANSPARENT
         val oldCloseColor = binding.close.iconTint?.defaultColor ?: Color.WHITE
         val mutableList = mutableListOf(
             binding.colorBackground.surfaceTintTarget(scheme.surfaceColor),
-            binding.mask.tintTarget(oldMaskColor, scheme.surfaceColor),
             binding.topMask.tintTarget(oldTopMaskColor, scheme.surfaceColor),
             binding.close.iconButtonTintTarget(oldCloseColor, scheme.onSurfaceColor)
         )
+        whichFragment<CoverPagerFragment>(R.id.playerAlbumCoverFragment).coverBottomBlendView?.let { blend ->
+            mutableList.add(
+                blend.tintTarget(
+                    blend.backgroundTintList?.defaultColor ?: Color.TRANSPARENT,
+                    scheme.surfaceColor
+                )
+            )
+        }
 
         val oldLabelColor = binding.nextSongLabel.currentTextColor
         mutableList.add(binding.nextSongLabel.tintTarget(oldLabelColor, scheme.onSurfaceVariantColor))
@@ -213,14 +248,6 @@ class GradientPlayerFragment : AbsPlayerFragment(R.layout.fragment_gradient_play
 
         mutableList.addAll(playerControlsFragment.getTintTargets(scheme))
         return mutableList
-    }
-
-    override fun onLyricsVisibilityChange(animatorSet: AnimatorSet, lyricsVisible: Boolean) {
-        if (lyricsVisible) {
-            animatorSet.play(ObjectAnimator.ofFloat(binding.mask, View.ALPHA, 0f))
-        } else {
-            animatorSet.play(ObjectAnimator.ofFloat(binding.mask, View.ALPHA, 1f))
-        }
     }
 
     override fun onSharedPreferenceChanged(preferences: SharedPreferences, key: String?) {

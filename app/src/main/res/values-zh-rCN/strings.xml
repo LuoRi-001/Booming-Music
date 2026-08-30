@@ -562,7 +562,15 @@
     <string name="lyrics_background_gradient">渐变</string>
     <string name="lyrics_background_blur">模糊</string>
     <string name="lyrics_blur_effect_title">模糊效果</string>
+    <string name="action_lyrics_effects">歌词效果</string>
+    <string name="lyrics_effects_font_title">字体</string>
+    <string name="lyrics_font_size_title">歌词大小</string>
+    <string name="lyrics_offset_title">歌词偏移</string>
+    <string name="lyrics_default_offset_title">默认偏移</string>
+    <string name="lyrics_bluetooth_offset_title">连接蓝牙后偏移</string>
     <string name="lyrics_blur_effect_summary">模糊正播放的歌词的上下的几行歌词。</string>
+    <string name="lyrics_blur_level_title">模糊程度</string>
+    <string name="lyrics_blur_level_summary">调节歌词模糊效果的强度，0 档为无模糊。</string>
     <string name="lyrics_shadow_effect_title">阴影效果</string>
     <string name="lyrics_shadow_effect_summary">为当前歌词行添加阴影，以提升可读性。</string>
     <string name="lyrics_progressive_coloring_title">渐变歌词动画</string>
@@ -593,6 +601,8 @@
     <string name="open_on_play_summary">开始播放歌曲后自动展开播放面板。</string>
     <string name="squiggly_seek_bar_title">波浪形进度条</string>
     <string name="squiggly_seek_bar_summary">使用波浪进度条代替默认的直线型滑块。</string>
+    <string name="bar_seek_bar_title">条形进度条</string>
+    <string name="bar_seek_bar_summary">使用细长条形进度条,播放位置以圆点显示,优先于波浪形进度条。</string>
     <string name="scrolling_text_title">滚动显示歌名</string>
     <string name="scrolling_text_summary">在歌曲名称过长时滚动显示。可能稍微更耗电。</string>
     <string name="extra_controls_title">额外控制按钮</string>

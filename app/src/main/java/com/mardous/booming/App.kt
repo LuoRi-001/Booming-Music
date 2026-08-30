@@ -93,7 +93,9 @@ class App : Application(), SingletonImageLoader.Factory {
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         return ImageLoader.Builder(context)
-            .crossfade(true)
+            // 50ms (3 frames @60fps): the default 100ms fade made cold-start
+            // covers (e.g. the home recommendations collage) feel sluggish.
+            .crossfade(50)
             .allowHardware(false)
             .components {
                 // Song/album

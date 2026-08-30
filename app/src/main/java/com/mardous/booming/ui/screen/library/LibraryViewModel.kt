@@ -85,13 +85,6 @@ class LibraryViewModel(
     private val customPlaylistImageManager: CustomPlaylistImageManager
 ) : ViewModel() {
 
-    init {
-        viewModelScope.launch(IO) {
-            initializeBlacklist()
-            deleteMissingContent()
-        }
-    }
-
     private val suggestions = MutableLiveData(SuggestedResult.Idle)
     private val songs = MutableLiveData<List<Song>>()
     private val albums = MutableLiveData<List<Album>>()
@@ -103,6 +96,29 @@ class LibraryViewModel(
     private val fabMargin = MutableLiveData(LibraryMargin(0))
     private val miniPlayerMargin = MutableLiveData(LibraryMargin(0))
     private val songHistory = MutableLiveData<List<Song>>()
+
+    // Must stay below the property declarations above: the coroutines
+    // launched here can start running while the constructor is still
+    // executing, and fetchSongs()/fetchSuggestions() read `songs` and
+    // `suggestions` — launching before those fields are initialized made
+    // cold start crash with an NPE.
+    init {
+        viewModelScope.launch(IO) {
+            initializeBlacklist()
+            deleteMissingContent()
+        }
+        // Prefetch the home screen data right away. Both queries used to
+        // wait for HomeFragment's view to be created, so the suggestions and
+        // the recommendations section rendered a few frames after the rest
+        // of the home screen. HomeFragment skips its own duplicate query
+        // when these have already run.
+        viewModelScope.launch(IO) {
+            fetchSongs()
+        }
+        viewModelScope.launch(IO) {
+            fetchSuggestions()
+        }
+    }
 
     fun getSuggestions(): LiveData<SuggestedResult> = suggestions
     fun getSongs(): LiveData<List<Song>> = songs

@@ -558,7 +558,15 @@
     <string name="lyrics_background_gradient">漸變</string>
     <string name="lyrics_background_blur">模糊</string>
     <string name="lyrics_blur_effect_title">模糊效果</string>
+    <string name="action_lyrics_effects">歌詞效果</string>
+    <string name="lyrics_effects_font_title">字體</string>
+    <string name="lyrics_font_size_title">歌詞大小</string>
+    <string name="lyrics_offset_title">歌詞偏移</string>
+    <string name="lyrics_default_offset_title">默認偏移</string>
+    <string name="lyrics_bluetooth_offset_title">連接藍牙後偏移</string>
     <string name="lyrics_blur_effect_summary">模糊正播放的歌詞的上下的幾行歌詞。</string>
+    <string name="lyrics_blur_level_title">模糊程度</string>
+    <string name="lyrics_blur_level_summary">調節歌詞模糊效果的強度，0 檔為無模糊。</string>
     <string name="lyrics_shadow_effect_title">陰影效果</string>
     <string name="lyrics_shadow_effect_summary">為當前歌詞行新增陰影，以提升可讀性。</string>
     <string name="lyrics_progressive_coloring_title">漸變歌詞動畫</string>
@@ -589,6 +597,8 @@
     <string name="open_on_play_summary">開始播放歌曲後自動展開播放面板。</string>
     <string name="squiggly_seek_bar_title">波浪形進度條</string>
     <string name="squiggly_seek_bar_summary">使用波浪進度條而非直線型滑塊。</string>
+    <string name="bar_seek_bar_title">條形進度條</string>
+    <string name="bar_seek_bar_summary">使用細長條形進度條,播放位置以圓點顯示,優先於波浪形進度條。</string>
     <string name="scrolling_text_title">滾動顯示歌名</string>
     <string name="scrolling_text_summary">在歌曲名稱過長時滾動顯示，可能會更加耗電。</string>
     <string name="extra_controls_title">額外控制</string>

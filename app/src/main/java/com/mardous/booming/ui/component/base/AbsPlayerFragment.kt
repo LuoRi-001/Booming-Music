@@ -87,6 +87,7 @@ import com.mardous.booming.ui.screen.equalizer.EqualizerFragment
 import com.mardous.booming.ui.screen.equalizer.EqualizerFragmentArgs
 import com.mardous.booming.ui.screen.library.LibraryViewModel
 import com.mardous.booming.ui.screen.lyrics.LyricsEditorFragmentArgs
+import com.mardous.booming.ui.screen.lyrics.LyricsEffectsFragment
 import com.mardous.booming.ui.screen.lyrics.LyricsFragment
 import com.mardous.booming.ui.screen.player.PlayerGesturesController
 import com.mardous.booming.ui.screen.player.PlayerGesturesController.GestureType
@@ -221,6 +222,11 @@ abstract class AbsPlayerFragment(@LayoutRes layoutRes: Int) : Fragment(layoutRes
 
             R.id.action_show_lyrics -> {
                 onQuickActionEvent(NowPlayingAction.Lyrics)
+                true
+            }
+
+            R.id.action_lyrics_effects -> {
+                LyricsEffectsFragment().show(childFragmentManager, "LYRICS_EFFECTS")
                 true
             }
 

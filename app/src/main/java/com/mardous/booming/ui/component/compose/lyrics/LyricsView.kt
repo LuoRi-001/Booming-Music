@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -83,6 +84,7 @@ import com.mardous.booming.ui.component.compose.decoration.fadingEdges
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun LyricsView(
@@ -114,6 +116,15 @@ fun LyricsView(
 
     LaunchedEffect(state.currentLineIndex) {
         if (state.currentLineIndex >= 0) {
+            // The very first run of this effect can happen before the LazyColumn's
+            // first measure, when layoutInfo is still empty (viewport size = 0).
+            // The estimate-based scrollToItem below would then compute a negative
+            // target and push the current line above the viewport, leaving the
+            // next line at the top. Wait for a real layout pass; on later runs
+            // the list is already measured, so this resumes immediately.
+            if (listState.layoutInfo.viewportEndOffset == 0) {
+                snapshotFlow { listState.layoutInfo.viewportEndOffset > 0 }.first { it }
+            }
             if (!isInDragGesture && !isScrollInProgress) {
                 val layoutInfo = listState.layoutInfo
                 val viewportHeight = with(layoutInfo) { viewportEndOffset - viewportStartOffset }
@@ -177,6 +188,7 @@ fun LyricsView(
                 showTranslation = settings.showTranslation,
                 showTransliteration = settings.showTransliteration,
                 enableBlurEffect = settings.blurEffect && disableBlurEffect.not(),
+                blurLevel = settings.blurLevel,
                 enableShadowEffect = settings.shadowEffect && disableAdvancedEffects.not(),
                 contentColor = contentColor,
                 progressMillis = state.position,
@@ -221,6 +233,7 @@ private fun LyricsLineView(
     showTranslation: Boolean,
     showTransliteration: Boolean,
     enableBlurEffect: Boolean,
+    blurLevel: Int,
     enableShadowEffect: Boolean,
     contentColor: Color,
     progressMillis: Long,
@@ -320,6 +333,7 @@ private fun LyricsLineView(
                         enableKaraokeStyle = enableKaraokeStyle,
                         progressiveColoring = progressiveColoring,
                         enableBlurEffect = enableBlurEffect,
+                        blurLevel = blurLevel,
                         enableShadowEffect = enableShadowEffect,
                         selectedLine = selectedLine,
                         contentColor = contentColor,
@@ -345,6 +359,7 @@ private fun LyricsLineView(
                             enableKaraokeStyle = enableKaraokeStyle,
                             progressiveColoring = progressiveColoring,
                             enableBlurEffect = enableBlurEffect,
+                        blurLevel = blurLevel,
                             enableShadowEffect = enableShadowEffect,
                             selectedLine = selectedLine,
                             contentColor = contentColor,
@@ -376,6 +391,7 @@ fun LyricsLineContentView(
     progressiveColoring: Boolean,
     enableKaraokeStyle: Boolean,
     enableBlurEffect: Boolean,
+    blurLevel: Int,
     enableShadowEffect: Boolean,
     selectedLine: Boolean,
     contentColor: Color,
@@ -395,7 +411,7 @@ fun LyricsLineContentView(
     val effectDuration = ((endMillis - startMillis) / 2).coerceAtMost(500).toInt()
     val blurRadius by animateFloatAsState(
         targetValue = if (index == selectedIndex) 0f else
-                (abs(index - selectedIndex).toFloat() + 1.5f).coerceIn(0f, 10f),
+                ((abs(index - selectedIndex).toFloat() + 1.5f) * blurLevel).coerceIn(0f, 10f),
         animationSpec = tween(effectDuration)
     )
 
@@ -408,6 +424,10 @@ fun LyricsLineContentView(
             )
         } else null
     }
+
+    // 模糊的行随模糊程度略微变暗:alpha 跟随已带动画的 blurRadius 同步渐变,
+    // 最大模糊(10px)时最多降 25%;未启用模糊或当前行(alpha=1)不变暗
+    val blurDimAlpha = if (blurEffect != null) 1f - (blurRadius / 10f) * 0.25f else 1f
 
     val mainSyllables = content.getSyllables(backgroundContent)
     val mainText = content.getText(backgroundContent)
@@ -428,6 +448,7 @@ fun LyricsLineContentView(
         align = align,
         modifier = modifier.graphicsLayer {
             renderEffect = blurEffect
+            alpha = blurDimAlpha
         }
     )
 
@@ -451,6 +472,7 @@ fun LyricsLineContentView(
             align = align,
             modifier = modifier.graphicsLayer {
                 renderEffect = blurEffect
+                alpha = blurDimAlpha
             }
         )
     }
@@ -478,6 +500,7 @@ fun LyricsLineContentView(
             align = align,
             modifier = modifier.graphicsLayer {
                 renderEffect = blurEffect
+                alpha = blurDimAlpha
             }
         )
     }

@@ -21,6 +21,11 @@
 		android:icon="@drawable/ic_lyrics_outline_24dp"
 		app:showAsAction="never"/>
 	<item
+		android:id="@+id/action_lyrics_effects"
+		android:title="@string/action_lyrics_effects"
+		android:icon="@drawable/ic_tune_24dp"
+		app:showAsAction="never"/>
+	<item
 		android:id="@+id/action_equalizer"
 		android:title="@string/equalizer_label"
 		android:icon="@drawable/ic_equalizer_24dp"

@@ -45,7 +45,6 @@ import com.mardous.booming.extensions.isLandscape
 import com.mardous.booming.extensions.keepScreenOn
 import com.mardous.booming.extensions.launchAndRepeatWithViewLifecycle
 import com.mardous.booming.extensions.navigation.findActivityNavController
-import com.mardous.booming.extensions.resources.BOOMING_ANIM_TIME
 import com.mardous.booming.ui.adapters.pager.CustomFragmentStatePagerAdapter
 import com.mardous.booming.ui.component.base.AbsPlayerFragment
 import com.mardous.booming.ui.component.transform.CarouselPagerTransformer
@@ -253,6 +252,14 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         }
     }
 
+    /**
+     * Bottom blend view, or null while this fragment's view does not exist.
+     * Lives between the cover pager and the lyrics view so player styles can
+     * fade the cover into the controls area without washing out the lyrics
+     * view or its toggle button. Hidden unless a style enables it.
+     */
+    val coverBottomBlendView get() = _binding?.coverBottomBlend
+
     fun showLyrics(isForced: Boolean = false) {
         if (!isAllowedToLoadLyrics || (!isShowLyricsOnCover && !isForced) || isAnimatingLyrics)
             return
@@ -260,13 +267,17 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         isAnimatingLyrics = true
 
         val animatorSet = AnimatorSet()
+        // A plain, very short crossfade: quick enough that the eye reads it as an
+        // instant state swap instead of two contents blending mid-transition.
+        // Only the container fades: the blend keeps masking the cover's bottom
+        // edge at every frame, so no hard edge can flash mid-transition.
         animatorSet.playTogether(
             ObjectAnimator.ofFloat(binding.coverLyricsFragment, View.ALPHA, 1f),
-            ObjectAnimator.ofFloat(binding.viewPager, View.ALPHA, 0f)
+            ObjectAnimator.ofFloat(binding.coverBlendContainer, View.ALPHA, 0f)
         )
-        animatorSet.duration = BOOMING_ANIM_TIME
+        animatorSet.duration = LYRICS_FADE_DURATION
         animatorSet.doOnEnd {
-            _binding?.viewPager?.isInvisible = true
+            _binding?.coverBlendContainer?.isInvisible = true
             isAnimatingLyrics = false
             it.removeAllListeners()
         }
@@ -294,11 +305,11 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
         val animatorSet = AnimatorSet()
         animatorSet.playTogether(
             ObjectAnimator.ofFloat(binding.coverLyricsFragment, View.ALPHA, 0f),
-            ObjectAnimator.ofFloat(binding.viewPager, View.ALPHA, 1f)
+            ObjectAnimator.ofFloat(binding.coverBlendContainer, View.ALPHA, 1f)
         )
-        animatorSet.duration = BOOMING_ANIM_TIME
+        animatorSet.duration = LYRICS_FADE_DURATION
         animatorSet.doOnStart {
-            _binding?.viewPager?.isInvisible = false
+            _binding?.coverBlendContainer?.isInvisible = false
         }
         animatorSet.doOnEnd {
             coverLyricsFragment?.let { fragment ->
@@ -326,15 +337,15 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
      */
     fun forceHideLyricsView() {
         // Cancel any running property animations that could override our state changes
-        _binding?.viewPager?.animate()?.cancel()
+        _binding?.coverBlendContainer?.animate()?.cancel()
         _binding?.coverLyricsFragment?.animate()?.cancel()
 
         isAnimatingLyrics = false
         isShowLyricsOnCoverInternal = false
         _binding?.let {
             it.coverLyricsFragment?.isVisible = false
-            it.viewPager?.isInvisible = false
-            it.viewPager?.alpha = 1f
+            it.coverBlendContainer?.isInvisible = false
+            it.coverBlendContainer?.alpha = 1f
         }
         coverLyricsFragment?.let { fragment ->
             activity?.keepScreenOn(false)
@@ -344,8 +355,8 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
                     .commitAllowingStateLoss()
             }
         }
-        // Fire callback with zero-duration animator so the outer fragment
-        // (GradientPlayerFragment) can restore mask alpha
+        // Fire callback with a zero-duration animator so listeners can sync
+        // their own state (e.g. the lyrics menu icon) without animation.
         val noopAnimator = AnimatorSet()
         noopAnimator.duration = 0
         callbacks?.onLyricsVisibilityChange(noopAnimator, false)
@@ -377,6 +388,11 @@ class CoverPagerFragment : Fragment(R.layout.fragment_player_album_cover),
 
     companion object {
         const val TAG = "PlayerAlbumCoverFragment"
+
+        // Cover/lyrics crossfade duration. Deliberately shorter than the standard
+        // BOOMING_ANIM_TIME: a long crossfade between the cover and the lyrics view
+        // reads as disjointed, a short one reads as an instant swap.
+        const val LYRICS_FADE_DURATION = 180L
     }
 }
 

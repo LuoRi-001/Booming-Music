@@ -1,5 +1,11 @@
 package com.mardous.booming.ui.screen.lyrics
 
+import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -30,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
@@ -58,6 +65,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -72,6 +80,7 @@ import com.mardous.booming.core.model.lyrics.LyricsViewState
 import com.mardous.booming.core.model.player.PlayerColorScheme
 import com.mardous.booming.data.model.Song
 import com.mardous.booming.data.model.lyrics.SyncedLyrics
+import com.mardous.booming.extensions.isBluetoothA2dpConnected
 import com.mardous.booming.extensions.isPowerSaveMode
 import com.mardous.booming.extensions.resolveColor
 import com.mardous.booming.ui.component.compose.AnimatedEqBars
@@ -100,6 +109,39 @@ sealed class LyricsUiState(open val id: Long) {
 @Composable
 private fun rememberLyricsViewState(lyrics: SyncedLyrics): LyricsViewState {
     return remember(lyrics) { LyricsViewState(lyrics) }
+}
+
+/**
+ * 蓝牙 A2DP 连接状态:决定歌词偏移用默认值还是蓝牙偏移值。
+ * 初始值直接查询,之后靠系统广播刷新。
+ */
+@Composable
+private fun rememberBluetoothA2dpConnected(): State<Boolean> {
+    val context = LocalContext.current
+    val connected = remember { mutableStateOf(context.isBluetoothA2dpConnected()) }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                connected.value = context.isBluetoothA2dpConnected()
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+        }
+        runCatching {
+            ContextCompat.registerReceiver(
+                context, receiver, filter, ContextCompat.RECEIVER_EXPORTED
+            )
+        }
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    return connected
 }
 
 @Composable
@@ -307,13 +349,16 @@ fun CoverLyricsScreen(
             progressiveColoring = rawSettings.progressiveColoring,
             backgroundEffect = rawSettings.backgroundEffect,
             blurEffect = rawSettings.blurEffect,
+            blurLevel = rawSettings.blurLevel,
             shadowEffect = rawSettings.shadowEffect,
             showTranslation = rawSettings.showTranslation,
             showTransliteration = rawSettings.showTransliteration,
             resumeOnSeek = rawSettings.resumeOnSeek,
             syncedStyle = rawSettings.syncedStyle,
             unsyncedStyle = rawSettings.unsyncedStyle,
-            lineSpacing = rawSettings.lineSpacing
+            lineSpacing = rawSettings.lineSpacing,
+            offsetDefaultMs = rawSettings.offsetDefaultMs,
+            offsetBluetoothMs = rawSettings.offsetBluetoothMs
         )
     }
     val uiState by lyricsViewModel.lyricsUiState.collectAsState()
@@ -463,8 +508,17 @@ private fun LyricsSurface(
                         isPlaying = isPlaying
                     )
 
+                    // 用户偏移:蓝牙音频连接时用蓝牙偏移,否则用默认偏移。
+                    // 正值让歌词提前(与 LRC offset 头语义一致)
+                    val bluetoothConnected = rememberBluetoothA2dpConnected()
+                    val userOffsetMs = if (bluetoothConnected.value) {
+                        settings.offsetBluetoothMs
+                    } else {
+                        settings.offsetDefaultMs
+                    }
+
                     LaunchedEffect(playerPosition) {
-                        lyricsViewState.updatePosition(smoothProgress)
+                        lyricsViewState.updatePosition(smoothProgress + userOffsetMs)
                     }
 
                     LyricsView(

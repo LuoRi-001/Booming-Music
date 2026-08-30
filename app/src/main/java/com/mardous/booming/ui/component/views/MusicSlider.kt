@@ -33,6 +33,7 @@ class MusicSlider @JvmOverloads constructor(
     private var thumbHeight = -1
     private var trackHeight = -1
     private var useSquiggly: Boolean = false
+    private var useBarStyle: Boolean = false
 
     var isTrackingTouch: Boolean = false
         private set
@@ -79,8 +80,10 @@ class MusicSlider @JvmOverloads constructor(
         context.withStyledAttributes(attrs, R.styleable.MusicSlider) {
             thumbHeight = getDimensionPixelSize(R.styleable.MusicSlider_musicSliderThumbHeight, -1)
             trackHeight = getDimensionPixelSize(R.styleable.MusicSlider_musicSliderTrackHeight, -1)
+            useBarStyle = Preferences.barSeekBar
             useSquiggly = getBoolean(R.styleable.MusicSlider_squigglyStyle, Preferences.squigglySeekBar)
             inflateSliderView(
+                useBarStyle = useBarStyle,
                 useSquiggly = useSquiggly,
                 previousState = ProgressViewState.from(this)
             )
@@ -99,9 +102,17 @@ class MusicSlider @JvmOverloads constructor(
     fun setUseSquiggly(useSquiggly: Boolean) {
         if (useSquiggly != this.useSquiggly) {
             val previousState = detachInternalView()
-            inflateSliderView(useSquiggly, previousState)
+            inflateSliderView(useBarStyle, useSquiggly, previousState)
         }
         this.useSquiggly = useSquiggly
+    }
+
+    fun setUseBarStyle(barStyle: Boolean) {
+        if (barStyle != this.useBarStyle) {
+            val previousState = detachInternalView()
+            inflateSliderView(barStyle, useSquiggly, previousState)
+        }
+        this.useBarStyle = barStyle
     }
 
     private fun detachInternalView(): ProgressViewState {
@@ -114,18 +125,35 @@ class MusicSlider @JvmOverloads constructor(
         return state
     }
 
-    private fun inflateSliderView(useSquiggly: Boolean, previousState: ProgressViewState?) {
-        internalView = if (useSquiggly) {
+    private fun inflateSliderView(
+        useBarStyle: Boolean,
+        useSquiggly: Boolean,
+        previousState: ProgressViewState?
+    ) {
+        // 条形样式优先于波浪样式:条形同样基于 Material Slider,
+        // 只是把 thumb 从竖条换成小圆点
+        internalView = if (useSquiggly && !useBarStyle) {
             LayoutInflater.from(context).inflate(R.layout.music_squiggly_slider, this, false)
         } else {
             LayoutInflater.from(context).inflate(R.layout.music_progress_slider, this, false)
         }
         (internalView as? Slider)?.let {
-            if (thumbHeight != -1) {
-                it.thumbHeight = thumbHeight
-            }
-            if (trackHeight != -1) {
-                it.trackHeight = trackHeight
+            if (useBarStyle) {
+                // 条形样式:4dp 细轨道 + 8dp 圆点(忽略布局提供的 thumb/track 尺寸,
+                // 保证所有播放页观感一致)
+                val density = resources.displayMetrics.density
+                it.trackHeight = (4 * density).toInt()
+                it.thumbWidth = (8 * density).toInt()
+                it.thumbHeight = (8 * density).toInt()
+                // 移除 M3 Slider 默认在轨道末端绘制的 stop indicator 小圆点
+                it.trackStopIndicatorSize = 0
+            } else {
+                if (thumbHeight != -1) {
+                    it.thumbHeight = thumbHeight
+                }
+                if (trackHeight != -1) {
+                    it.trackHeight = trackHeight
+                }
             }
         }
         if (previousState != null) {

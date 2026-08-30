@@ -12,10 +12,15 @@ class StatsCardFooterAdapter(
     private val onClick: () -> Unit
 ) : RecyclerView.Adapter<StatsCardFooterAdapter.ViewHolder>() {
 
-    // Visible by default so the card participates in the very first layout
-    // after re-entering the screen — the content height is then complete
-    // from the start and the home screen's scroll restore lands directly.
-    var isVisible: Boolean = true
+    // Hidden by default: on a cold start the card would otherwise paint its
+    // shell in the very first layout, a couple of frames before the rest of
+    // the home content (which waits for the suggestions query). HomeFragment
+    // reveals it once the suggestions data lands, so every block appears in
+    // the same frame. Re-entering the screen is unaffected — the observer
+    // then delivers an already-ready result and the card is inserted before
+    // the first layout, with its cached height keeping the scroll restore
+    // exact.
+    var isVisible: Boolean = false
         set(value) {
             if (field != value) {
                 field = value
