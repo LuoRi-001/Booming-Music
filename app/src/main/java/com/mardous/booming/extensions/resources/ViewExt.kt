@@ -45,6 +45,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.annotation.MenuRes
 import androidx.appcompat.widget.Toolbar
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.animation.doOnEnd
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
@@ -73,7 +74,9 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.shape.Shapeable
 import com.google.android.material.slider.Slider
 import com.mardous.booming.R
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.extensions.dip
+import com.mardous.booming.extensions.isNightMode
 import com.mardous.booming.extensions.resolveColor
 import com.mardous.booming.ui.component.views.MorphicIconButton
 import com.mardous.booming.util.Preferences
@@ -965,7 +968,16 @@ fun BottomSheetBehavior<*>.peekHeightAnimate(value: Int): Animator {
 }
 
 fun AppBarLayout.setupStatusBarForeground() {
-    statusBarForeground = MaterialShapeDrawable.createWithElevationOverlay(context)
+    val drawable = MaterialShapeDrawable.createWithElevationOverlay(context)
+    // Screens that follow the cover ask for this strip every time they come
+    // back, and the drawable they get is painted with the theme colour of that
+    // very moment: tinted here with the palette already published, so the strip
+    // never has to wait for the next song change to catch up.
+    CoverColorState.scheme.value
+        ?.takeIf { CoverColorState.isEnabled }
+        ?.forNightMode(resources.isNightMode)
+        ?.let { drawable.setTint(it.surface.toArgb()) }
+    statusBarForeground = drawable
 }
 
 fun CompoundButton.animateToggle() = post { isChecked = !isChecked }

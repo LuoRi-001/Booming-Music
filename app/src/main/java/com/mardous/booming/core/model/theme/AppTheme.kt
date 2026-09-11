@@ -23,6 +23,7 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.content.ContextCompat
 import com.google.android.material.color.DynamicColors
 import com.mardous.booming.R
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.util.GeneralTheme
 import com.mardous.booming.util.Preferences
 
@@ -49,6 +50,18 @@ class AppTheme private constructor(
             val generalTheme = Preferences.generalTheme
             val themeMode = Preferences.getThemeMode(generalTheme)
             if (DynamicColors.isDynamicColorAvailable()) {
+                // A cover palette takes priority over the wallpaper one: the
+                // user asked for it explicitly, and the library screen behind
+                // this activity is already painted with it.
+                val coverSeed = CoverColorState.activeSeed
+                if (coverSeed != null) {
+                    return AppTheme(
+                        id = generalTheme,
+                        themeRes = themeMode.themeRes,
+                        applyDynamicColors = true,
+                        seedColor = coverSeed
+                    )
+                }
                 if (Preferences.isMaterialYouTheme) {
                     return AppTheme(
                         id = generalTheme,

@@ -538,10 +538,14 @@
     <string name="general_theme_title">一般主题</string>
     <string name="pure_black_theme_title">纯黑色</string>
     <string name="material_you_title">Material You 动态色彩</string>
+    <string name="cover_color_title">封面取色</string>
+    <string name="cover_color_summary">根据正在播放的歌曲封面生成整个应用的配色</string>
     <string name="use_custom_font_title">使用自定义字体</string>
     <string name="appbar_mode_title">标题样式</string>
     <string name="library_categories_title">曲库分类</string>
     <string name="library_categories_summary">配置曲库分类的可见性和顺序。</string>
+    <string name="home_cards_title">主页组件</string>
+    <string name="home_cards_summary">选择主页显示哪些组件，长按右侧把手可拖动排序。</string>
     <string name="remember_last_page_title">记住最后一个页面</string>
     <string name="remember_last_page_summary">在启动时转到最后打开的页面。</string>
     <string name="start_page_title">开始页面</string>

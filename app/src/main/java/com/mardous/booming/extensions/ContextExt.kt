@@ -61,7 +61,7 @@ fun Int.dp(resources: Resources): Int = (this * resources.displayMetrics.density
 val Configuration.isLandscape: Boolean
     get() = orientation == Configuration.ORIENTATION_LANDSCAPE
 
-private val Resources.isNightMode: Boolean
+val Resources.isNightMode: Boolean
     get() = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
 val Resources.isLandscape: Boolean

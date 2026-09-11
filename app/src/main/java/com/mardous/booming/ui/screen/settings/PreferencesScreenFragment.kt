@@ -67,6 +67,7 @@ import com.mardous.booming.ui.component.preferences.dialog.ActionOnCoverPreferen
 import com.mardous.booming.ui.component.preferences.dialog.CategoriesPreferenceDialog
 import com.mardous.booming.ui.component.preferences.dialog.ClearQueueActionPreferenceDialog
 import com.mardous.booming.ui.component.preferences.dialog.ExtraInfoPreferenceDialog
+import com.mardous.booming.ui.component.preferences.dialog.HomeCardsPreferenceDialog
 import com.mardous.booming.ui.component.preferences.dialog.NowPlayingScreenPreferenceDialog
 import com.mardous.booming.ui.component.preferences.dialog.SingleSelectionDialog
 import com.mardous.booming.ui.component.preferences.dialog.SongClickActionPreferenceDialog
@@ -92,6 +93,7 @@ import com.mardous.booming.util.COVER_RIGHT_DOUBLE_TAP_ACTION
 import com.mardous.booming.util.COVER_SINGLE_TAP_ACTION
 import com.mardous.booming.util.ENABLE_ROTATION_LOCK
 import com.mardous.booming.util.GENERAL_THEME
+import com.mardous.booming.util.HOME_CARDS
 import com.mardous.booming.util.IGNORE_MEDIA_STORE
 import com.mardous.booming.util.LANGUAGE_NAME
 import com.mardous.booming.util.LASTFM_LOGIN
@@ -358,6 +360,10 @@ open class PreferenceScreenFragment : PreferenceFragmentCompat(),
             true
         }
 
+        // COVER_COLOR needs no listener here: the activity hears the same
+        // preference and republishes the palette before recreating itself
+        // (a recreate from here would race that async republish).
+
         findPreference<Preference>(WIDGET_IMAGE_CORNER_RADIUS)?.isVisible = hasS()
         findPreference<Preference>(ADD_EXTRA_CONTROLS)?.isVisible = !resources.isTablet
 
@@ -505,6 +511,7 @@ open class PreferenceScreenFragment : PreferenceFragmentCompat(),
         } else {
             val dialogFragment: DialogFragment? = when (preference.key) {
                 LIBRARY_CATEGORIES -> CategoriesPreferenceDialog()
+                HOME_CARDS -> HomeCardsPreferenceDialog()
                 NOW_PLAYING_SCREEN -> NowPlayingScreenPreferenceDialog()
                 NOW_PLAYING_EXTRA_INFO -> ExtraInfoPreferenceDialog.nowPlaying(requireContext())
                 WIDGET_THIRD_LINE_CONTENT -> ExtraInfoPreferenceDialog.appWidgets(requireContext())
@@ -556,6 +563,8 @@ open class PreferenceScreenFragment : PreferenceFragmentCompat(),
                 libraryViewModel.forceReload(ReloadType.Artists)
                 libraryViewModel.forceReload(ReloadType.Suggestions)
             }
+
+            HOME_CARDS -> libraryViewModel.forceReload(ReloadType.Suggestions)
 
             NOW_PLAYING_SCREEN -> onUpdateNowPlayingScreen()
             COVER_DOUBLE_TAP_ACTION,

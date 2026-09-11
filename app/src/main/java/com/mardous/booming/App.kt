@@ -49,6 +49,7 @@ import com.mardous.booming.coil.store.PlaylistImageKeyer
 import com.mardous.booming.coil.store.PlaylistMapper
 import com.mardous.booming.coil.store.SongMapper
 import com.mardous.booming.coil.store.YearMapper
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.data.local.ReplayGainTagExtractor
 import com.mardous.booming.ui.screen.MainActivity
 import com.mardous.booming.ui.screen.error.ErrorActivity
@@ -67,6 +68,7 @@ class App : Application(), SingletonImageLoader.Factory {
             androidContext(this@App)
             modules(appModules)
         }
+        CoverColorState.initialize(this)
 
         if (BuildConfig.DEBUG) enableStrictMode()
 

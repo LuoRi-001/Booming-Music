@@ -52,6 +52,8 @@ import java.io.File
 
 const val MAX_ITEMS_PER_CHUNK = 900
 
+private const val MAX_SUGGESTION_ITEMS = 10
+
 interface Repository {
 
     suspend fun allSongs(): List<Song>
@@ -110,11 +112,9 @@ interface Repository {
     suspend fun songByMediaItem(mediaItem: MediaItem?): Song
     suspend fun songsByFolder(folderPath: String, includeSubfolders: Boolean): List<Song>
     suspend fun songByFilePath(path: String, ignoreBlacklist: Boolean): Song
-    suspend fun homeSuggestions(): List<Suggestion>
-    suspend fun recentArtistsSuggestion(): Suggestion
-    suspend fun recentAlbumsSuggestion(): Suggestion
-    suspend fun historySuggestion(): Suggestion
+    suspend fun homeSuggestions(types: List<ContentType>): List<Suggestion>
     suspend fun recentSongs(): List<Song>
+    suspend fun recentSongs(query: String, contentType: ContentType): List<Song>
     suspend fun topArtists(): List<Artist>
     suspend fun recentArtists(): List<Artist>
     suspend fun topAlbums(): List<Album>
@@ -339,32 +339,32 @@ class RealRepository(
     override suspend fun songByFilePath(path: String, ignoreBlacklist: Boolean) =
         songRepository.songByFilePath(path, ignoreBlacklist)
 
-    override suspend fun homeSuggestions(): List<Suggestion> {
-        return listOf(
-            historySuggestion(),
-            recentAlbumsSuggestion(),
-            recentArtistsSuggestion()
-        ).filter {
+    override suspend fun homeSuggestions(types: List<ContentType>): List<Suggestion> {
+        return types.map { type ->
+            val items: List<Any> = when (type) {
+                ContentType.TopArtists -> smartRepository.topAlbumArtists()
+                ContentType.RecentArtists -> smartRepository.recentAlbumArtists()
+                ContentType.TopAlbums -> smartRepository.topAlbums()
+                ContentType.RecentAlbums -> smartRepository.recentAlbums()
+                ContentType.TopTracks -> smartRepository.playCountSongs()
+                ContentType.History -> historySongs()
+                // The "recent" query that takes a content type is the only one
+                // that sorts by DATE_ADDED; smartRepository.recentSongs() maps
+                // to the history table, which is recently *played*.
+                ContentType.RecentSongs -> smartRepository.recentSongs("", ContentType.RecentSongs)
+                ContentType.Favorites -> favoriteSongs()
+                ContentType.NotRecentlyPlayed -> smartRepository.notRecentlyPlayedSongs()
+            }
+            Suggestion(type, items.take(MAX_SUGGESTION_ITEMS))
+        }.filter {
             it.items.isNotEmpty()
         }
     }
 
-    override suspend fun recentArtistsSuggestion(): Suggestion {
-        val artists = smartRepository.recentAlbumArtists().take(10)
-        return Suggestion(ContentType.RecentArtists, artists)
-    }
-
-    override suspend fun historySuggestion(): Suggestion {
-        val songs = historySongs().take(10)
-        return Suggestion(ContentType.History, songs)
-    }
-
-    override suspend fun recentAlbumsSuggestion(): Suggestion {
-        val albums = smartRepository.recentAlbums().take(10)
-        return Suggestion(ContentType.RecentAlbums, albums)
-    }
-
     override suspend fun recentSongs(): List<Song> = smartRepository.recentSongs()
+
+    override suspend fun recentSongs(query: String, contentType: ContentType): List<Song> =
+        smartRepository.recentSongs(query, contentType)
 
     override suspend fun topArtists(): List<Artist> = smartRepository.topAlbumArtists()
 

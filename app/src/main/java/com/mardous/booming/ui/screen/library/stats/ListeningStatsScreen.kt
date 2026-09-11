@@ -1,5 +1,6 @@
 package com.mardous.booming.ui.screen.library.stats
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -42,10 +45,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,44 +76,10 @@ fun ListeningStatsScreen(
     libraryViewModel: LibraryViewModel,
     onBackClick: () -> Unit
 ) {
-    var selectedRange by rememberSaveable { mutableStateOf(StatsTimeRange.WEEK) }
-    // remember(selectedRange): the LiveData is only re-created when the range
-    // changes. Recreating it on every recomposition (e.g. while the ranking
-    // progress bars animate) caused a new query per frame and a flash of the
-    // empty state between LiveData swaps.
-    val ranking by remember(selectedRange) {
-        libraryViewModel.listeningStatsRanking(selectedRange)
-    }.observeAsState(emptyList())
-    val timelineBars by remember(selectedRange) {
-        libraryViewModel.getTimelineBars(selectedRange)
-    }.observeAsState(emptyList())
-    val selectedDuration by remember(selectedRange) {
-        libraryViewModel.totalDurationFor(selectedRange)
-    }.observeAsState(0L)
-
-    val totalPlays = ranking.sumOf { it.playCount }
-
-    // Restore the scroll position saved in the activity-scoped ViewModel once
-    // the ranking data arrives, and keep it updated while scrolling, so
-    // leaving and re-entering the screen continues where the user was.
-    val listState = rememberLazyListState()
-    var restoredScroll by remember { mutableStateOf(false) }
-    LaunchedEffect(ranking, listState) {
-        if (!restoredScroll && ranking.isNotEmpty()) {
-            restoredScroll = true
-            listState.scrollToItem(
-                index = libraryViewModel.statsScrollIndex,
-                scrollOffset = libraryViewModel.statsScrollOffset
-            )
-        }
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-        }.distinctUntilChanged().collect { (index, offset) ->
-            libraryViewModel.saveStatsScrollPosition(index, offset)
-        }
-    }
+    val pagerState = rememberPagerState(
+        initialPage = STATS_RANGES.indexOf(StatsTimeRange.WEEK)
+    ) { STATS_RANGES.size }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -134,68 +104,152 @@ fun ListeningStatsScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            state = listState,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp, top = 8.dp,
-                bottom = 200.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(padding)
         ) {
-            // Time range tabs
-            item {
-                RangeTabsRow(
-                    selected = selectedRange,
-                    onSelected = { selectedRange = it }
+            // The range chips are pinned above the pager, so they double as
+            // its page indicator while swiping.
+            RangeTabsRow(
+                selected = STATS_RANGES[pagerState.currentPage],
+                onSelected = { range ->
+                    scope.launch {
+                        pagerState.animateScrollToPage(STATS_RANGES.indexOf(range))
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                // Compose the adjacent ranges ahead of the swipe. Their
+                // queries start before the page becomes visible, so a swipe
+                // lands on data instead of a flash of empty state.
+                beyondViewportPageCount = 1,
+                key = { STATS_RANGES[it] }
+            ) { page ->
+                StatsRangePage(
+                    range = STATS_RANGES[page],
+                    libraryViewModel = libraryViewModel
                 )
-            }
-
-            // Hero section - 2 cards
-            item {
-                StatsHeroSection(
-                    durationMs = selectedDuration,
-                    playCount = totalPlays
-                )
-            }
-
-            // Timeline section
-            item {
-                TimelineSection(
-                    bars = timelineBars,
-                    range = selectedRange
-                )
-            }
-
-            // Section: Top songs
-            item {
-                SectionLabel(text = stringResource(R.string.stats_section_top_songs))
-            }
-
-            val rankingList = ranking
-            if (rankingList.isEmpty()) {
-                item {
-                    EmptyState()
-                }
-            } else {
-                // Key by song id so a ranking reorder (which happens on every
-                // play count update while listening) reuses the item's
-                // composition for the same song instead of swapping the item
-                // content at a position. Position-based reuse was causing
-                // cover state to be shared across different songs and a fetch
-                // storm on every list emission.
-                itemsIndexed(rankingList, key = { _, entity -> entity.id }) { index, entity ->
-                    SongRankingItem(
-                        entity = entity,
-                        rank = index + 1,
-                        maxDuration = rankingList.firstOrNull()?.totalPlayDurationMs ?: 1L
-                    )
-                }
             }
         }
     }
+}
+
+@Composable
+private fun StatsRangePage(
+    range: StatsTimeRange,
+    libraryViewModel: LibraryViewModel
+) {
+    // remember(range): the LiveData is only re-created when the range changes.
+    // Recreating it on every recomposition (e.g. while the ranking progress
+    // bars animate) caused a new query per frame and a flash of the empty
+    // state between LiveData swaps.
+    val ranking by remember(range) {
+        libraryViewModel.listeningStatsRanking(range)
+    }.observeAsState(emptyList())
+    val timelineBars by remember(range) {
+        libraryViewModel.getTimelineBars(range)
+    }.observeAsState(emptyList())
+    val selectedDuration by remember(range) {
+        libraryViewModel.totalDurationFor(range)
+    }.observeAsState(0L)
+
+    val totalPlays = ranking.sumOf { it.playCount }
+
+    // Restore the scroll position saved in the activity-scoped ViewModel once
+    // the ranking data arrives, and keep it updated while scrolling, so
+    // leaving and re-entering the screen continues where the user was.
+    val listState = rememberLazyListState()
+    var restoredScroll by remember(range) { mutableStateOf(false) }
+    LaunchedEffect(ranking, listState) {
+        if (!restoredScroll && ranking.isNotEmpty()) {
+            restoredScroll = true
+            listState.scrollToItem(
+                index = libraryViewModel.statsScrollIndex(range),
+                scrollOffset = libraryViewModel.statsScrollOffset(range)
+            )
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+        }.distinctUntilChanged().collect { (index, offset) ->
+            libraryViewModel.saveStatsScrollPosition(range, index, offset)
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp, end = 16.dp, top = 8.dp,
+            bottom = 200.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Hero section - 2 cards
+        item {
+            StatsHeroSection(
+                durationMs = selectedDuration,
+                playCount = totalPlays
+            )
+        }
+
+        // Timeline section
+        item {
+            TimelineSection(
+                bars = timelineBars,
+                range = range
+            )
+        }
+
+        // Section: Top songs
+        item {
+            SectionLabel(text = stringResource(R.string.stats_section_top_songs))
+        }
+
+        val rankingList = ranking
+        if (rankingList.isEmpty()) {
+            item {
+                EmptyState()
+            }
+        } else {
+            // Key by song id so a ranking reorder (which happens on every
+            // play count update while listening) reuses the item's
+            // composition for the same song instead of swapping the item
+            // content at a position. Position-based reuse was causing
+            // cover state to be shared across different songs and a fetch
+            // storm on every list emission.
+            itemsIndexed(rankingList, key = { _, entity -> entity.id }) { index, entity ->
+                SongRankingItem(
+                    entity = entity,
+                    rank = index + 1,
+                    maxDuration = rankingList.firstOrNull()?.totalPlayDurationMs ?: 1L
+                )
+            }
+        }
+    }
+}
+
+private val STATS_RANGES = listOf(
+    StatsTimeRange.TODAY,
+    StatsTimeRange.WEEK,
+    StatsTimeRange.MONTH,
+    StatsTimeRange.YEAR,
+    StatsTimeRange.ALL
+)
+
+@StringRes
+private fun StatsTimeRange.labelRes(): Int = when (this) {
+    StatsTimeRange.TODAY -> R.string.listening_stats_today
+    StatsTimeRange.WEEK -> R.string.listening_stats_week
+    StatsTimeRange.MONTH -> R.string.listening_stats_month
+    StatsTimeRange.YEAR -> R.string.listening_stats_year
+    StatsTimeRange.ALL -> R.string.listening_stats_all_time
 }
 
 @Composable
@@ -204,26 +258,19 @@ private fun RangeTabsRow(
     onSelected: (StatsTimeRange) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val ranges = listOf(
-        StatsTimeRange.TODAY to R.string.listening_stats_today,
-        StatsTimeRange.WEEK to R.string.listening_stats_week,
-        StatsTimeRange.MONTH to R.string.listening_stats_month,
-        StatsTimeRange.YEAR to R.string.listening_stats_year,
-        StatsTimeRange.ALL to R.string.listening_stats_all_time,
-    )
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ranges.forEach { (range, labelRes) ->
+        STATS_RANGES.forEach { range ->
             FilterChip(
                 selected = range == selected,
                 onClick = { onSelected(range) },
                 label = {
                     Text(
-                        text = stringResource(labelRes),
+                        text = stringResource(range.labelRes()),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = if (range == selected) FontWeight.Bold else FontWeight.Medium
                     )

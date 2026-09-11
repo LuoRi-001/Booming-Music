@@ -1,11 +1,15 @@
 package com.mardous.booming.ui.adapters
 
 import android.view.ViewGroup
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.recyclerview.widget.RecyclerView
+import com.mardous.booming.core.palette.CoverColorState
+import com.mardous.booming.extensions.isNightMode
 import com.mardous.booming.ui.screen.library.LibraryViewModel
 import com.mardous.booming.ui.screen.library.stats.ListeningStatsCard
+import com.mardous.booming.ui.theme.BoomingMusicTheme
 
 class StatsCardFooterAdapter(
     private val libraryViewModel: LibraryViewModel,
@@ -33,24 +37,36 @@ class StatsCardFooterAdapter(
         }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val composeView = ComposeView(parent.context).apply {
+        val context = parent.context
+        val composeView = ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            // Paint the theme's background while Compose bootstraps so the
-            // card never flashes the window background during the first
-            // frame after re-entering the home screen.
-            val background = parent.context.obtainStyledAttributes(
-                intArrayOf(android.R.attr.colorBackground)
-            ).let { attrs ->
-                val color = attrs.getColor(0, 0xFF000000.toInt())
-                attrs.recycle()
-                color
-            }
+            // Paint the background while Compose bootstraps so the card never
+            // flashes the window background during the first frame after
+            // re-entering the home screen. The card inside is inset, so this
+            // colour is what shows around it, and it has to come from the
+            // cover palette when one is in use: the theme's own colour is the
+            // one of whatever song was playing when the activity was created.
+            val background = CoverColorState.scheme.value
+                ?.takeIf { CoverColorState.isEnabled }
+                ?.forNightMode(context.resources.isNightMode)
+                ?.surface?.toArgb()
+                ?: context.obtainStyledAttributes(
+                    intArrayOf(android.R.attr.colorBackground)
+                ).let { attrs ->
+                    val color = attrs.getColor(0, 0xFF000000.toInt())
+                    attrs.recycle()
+                    color
+                }
             setBackgroundColor(background)
+            // The card reads MaterialTheme for every colour it draws, so it
+            // has to sit inside the app theme to follow the cover at all.
             setContent {
-                ListeningStatsCard(
-                    libraryViewModel = libraryViewModel,
-                    onCardClick = onClick
-                )
+                BoomingMusicTheme {
+                    ListeningStatsCard(
+                        libraryViewModel = libraryViewModel,
+                        onCardClick = onClick
+                    )
+                }
             }
         }
         // Use the last measured height as a placeholder so the card keeps its

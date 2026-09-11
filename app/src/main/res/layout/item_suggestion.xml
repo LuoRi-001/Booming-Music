@@ -26,7 +26,7 @@
         app:layout_constraintEnd_toStartOf="@+id/open"
         tools:text="@string/last_added_label"/>
 
-    <com.google.android.material.button.MaterialButton
+    <com.mardous.booming.ui.component.views.CoverTintButton
         android:id="@+id/open"
         style="?materialIconButtonFilledStyle"
         android:layout_width="wrap_content"

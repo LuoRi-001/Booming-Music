@@ -100,6 +100,28 @@ class EqualizerManager(
     @Volatile
     private var awaitingSessionConfirm = false
 
+    /**
+     * The framework moves our effects onto a different output thread when the
+     * output route changes and reconfigures them for that thread's channel
+     * count. A DSP engine cannot follow that: DynamicsProcessing sizes its
+     * internal engine from the channel count reported when the effect is
+     * created (2 channels on Bluetooth vs. 12 on the spatializer path here)
+     * and keeps processing only that many channels of the new, wider stream,
+     * which is heard as static until the engine is rebuilt. A real device
+     * change therefore marks the engine for a rebuild; the rebuild itself runs
+     * on the next playback start, when the framework has finished moving the
+     * effects and a freshly created effect reports the new route's channel
+     * count.
+     */
+    @Volatile
+    private var pendingEngineRebuild = false
+
+    /**
+     * Last output device type seen, used to tell a real route change from the
+     * repeated notifications the same device produces.
+     */
+    private var lastOutputDeviceType: AudioDeviceType? = null
+
     val eqState =
         combine(
             audioOutputObserver.bitPerfectState,
@@ -758,7 +780,11 @@ class EqualizerManager(
      */
     fun confirmSession() {
         val confirmNow = awaitingSessionConfirm
-        setSession(eqSession.copy(), eqState.value, forceRecreate = confirmNow)
+        // Playback start: the framework has moved (and reconfigured) our
+        // effects for the current route by now, so a route change recorded
+        // while paused is applied by rebuilding the engine here.
+        val rebuildForRoute = consumePendingEngineRebuild()
+        setSession(eqSession.copy(), eqState.value, forceRecreate = confirmNow || rebuildForRoute)
     }
 
     fun setSessionIsActive(isActive: Boolean, eqState: EqState = this.eqState.value) {
@@ -771,8 +797,22 @@ class EqualizerManager(
                     SessionType.External
                 }
             ),
-            eqState = eqState
+            eqState = eqState,
+            // Only playback start may apply a pending route change — a pause
+            // must keep both the engine and the flag (see confirmSession()).
+            forceRecreate = isActive && consumePendingEngineRebuild()
         )
+    }
+
+    /**
+     * Takes the pending route-change rebuild, if any. Returns whether the
+     * caller must recreate the engine.
+     */
+    private fun consumePendingEngineRebuild(): Boolean {
+        if (!pendingEngineRebuild)
+            return false
+        pendingEngineRebuild = false
+        return true
     }
 
     @Synchronized
@@ -1063,6 +1103,20 @@ class EqualizerManager(
     }
 
     private suspend fun setCurrentDevice(currentDevice: AudioDevice) {
+        // A real route change moves our effects to another output thread,
+        // where the framework reconfigures them for its channel count — the
+        // engine has to be rebuilt to follow (see pendingEngineRebuild).
+        // Unknown is ignored: the observer reports it while the route is
+        // briefly undetermined, which would otherwise look like a change
+        // away and back.
+        val deviceType = currentDevice.type
+        if (deviceType != AudioDeviceType.Unknown && deviceType != lastOutputDeviceType) {
+            if (lastOutputDeviceType != null) {
+                pendingEngineRebuild = true
+            }
+            lastOutputDeviceType = deviceType
+        }
+
         val eqState = eqState.value
         if (eqState == EqState.Unspecified || !eqState.supported ||
             currentDevice == AudioDevice.UnknownDevice)

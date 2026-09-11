@@ -18,11 +18,14 @@
 package com.mardous.booming.ui.component.base
 
 import android.Manifest.permission.READ_MEDIA_IMAGES
+import android.animation.Animator
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -34,6 +37,10 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
+import androidx.annotation.AttrRes
+import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.core.animation.doOnEnd
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -45,9 +52,16 @@ import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.session.MediaController
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
+import coil3.size.Scale
+import coil3.toBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -58,6 +72,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDE
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HIDDEN
 import com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_SETTLING
 import com.google.android.material.bottomsheet.BottomSheetBehavior.from
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationBarView
 import com.google.android.material.navigationrail.NavigationRailView
@@ -67,6 +82,9 @@ import com.mardous.booming.core.model.CategoryInfo
 import com.mardous.booming.core.model.LibraryMargin
 import com.mardous.booming.core.model.action.QueueClearingBehavior
 import com.mardous.booming.core.model.theme.NowPlayingScreen
+import com.mardous.booming.core.palette.CoverColorState
+import com.mardous.booming.core.palette.CoverSeedExtractor
+import com.mardous.booming.data.model.Song
 import com.mardous.booming.data.model.search.SearchQuery
 import com.mardous.booming.databinding.SlidingMusicPanelLayoutBinding
 import com.mardous.booming.extensions.applyWindowInsets
@@ -75,7 +93,10 @@ import com.mardous.booming.extensions.dip
 import com.mardous.booming.extensions.getBottomInsets
 import com.mardous.booming.extensions.hasT
 import com.mardous.booming.extensions.isLandscape
+import com.mardous.booming.extensions.isNightMode
 import com.mardous.booming.extensions.launchAndRepeatWithViewLifecycle
+import com.mardous.booming.extensions.resources.animateBackgroundColor
+import com.mardous.booming.extensions.resources.animateTintColor
 import com.mardous.booming.extensions.resources.darkenColor
 import com.mardous.booming.extensions.resources.hide
 import com.mardous.booming.extensions.resources.isColorLight
@@ -102,6 +123,7 @@ import com.mardous.booming.util.ADAPTIVE_CONTROLS
 import com.mardous.booming.util.ADD_EXTRA_CONTROLS
 import com.mardous.booming.util.CAROUSEL_EFFECT
 import com.mardous.booming.util.CIRCLE_PLAY_BUTTON
+import com.mardous.booming.util.COVER_COLOR
 import com.mardous.booming.util.ENABLE_ROTATION_LOCK
 import com.mardous.booming.util.HOLD_TAB_TO_SEARCH
 import com.mardous.booming.util.LIBRARY_CATEGORIES
@@ -147,6 +169,7 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
     private var paletteColor: Int = 0
     private var restoreExpanded = false
     private var pendingHideJob: Job? = null
+    private val coverColorAnimators = mutableListOf<Animator>()
 
     var panelState: Int
         get() = bottomSheetBehavior.state
@@ -240,6 +263,16 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
             playerViewModel.currentSongFlow.collect { currentSong ->
                 lyricsViewModel.updateSong(currentSong)
             }
+        }
+
+        launchAndRepeatWithViewLifecycle {
+            playerViewModel.currentSongFlow
+                .distinctUntilChangedBy { it.id }
+                .collect { publishCoverPalette(it) }
+        }
+
+        launchAndRepeatWithViewLifecycle {
+            CoverColorState.scheme.collect { applyCoverPalette(it) }
         }
 
         launchAndRepeatWithViewLifecycle {
@@ -533,6 +566,106 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
         binding.playerContainer.alpha = (progress - 0.2F) / 0.2F
     }
 
+    /**
+     * Reads the cover of [song] and republishes the palette built from it.
+     * The cover is decoded tiny here: the extractor only ever looks at a
+     * 32x32 grid, so a bigger request would just be wasted decode time on
+     * every song change.
+     */
+    private suspend fun publishCoverPalette(song: Song) {
+        if (!CoverColorState.isEnabled || song.id < 0) {
+            CoverColorState.update(null)
+            return
+        }
+        val context = this
+        // Small as it is, this is a decode plus a pass over the pixels, and it
+        // used to run between the song change and the palette reaching the
+        // screen: keep it off the main dispatcher.
+        val seed = withContext(Dispatchers.Default) {
+            SingletonImageLoader.get(context)
+                .execute(
+                    ImageRequest.Builder(context)
+                        .data(song)
+                        .scale(Scale.FILL)
+                        .size(COVER_SAMPLE_SIZE)
+                        .build()
+                )
+                .image
+                ?.toBitmap(COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE)
+                ?.let(CoverSeedExtractor::dominantColor)
+        }
+        CoverColorState.update(seed)
+    }
+
+    /**
+     * Paints the library chrome from a cover palette, or back to the theme
+     * colours when there is none. Songs change without this activity ever
+     * being recreated, so nothing here can lean on the theme being reapplied.
+     */
+    private fun applyCoverPalette(published: CoverColorState.CoverScheme?) {
+        coverColorAnimators.forEach(Animator::cancel)
+        coverColorAnimators.clear()
+
+        val sheet = binding.sheetView
+        val navigation = binding.navigationView
+        // The pure black theme turns the feature off without republishing, so
+        // a palette still sitting in the state must not outlive it.
+        val colorScheme = published
+            .takeIf { CoverColorState.isEnabled }
+            ?.forNightMode(resources.isNightMode)
+
+        fun color(view: View, @AttrRes attr: Int, role: (ColorScheme) -> ComposeColor): Int =
+            colorScheme?.let { role(it).toArgb() }
+                ?: MaterialColors.getColor(view, attr, Color.TRANSPARENT)
+
+        // The bottom bar is filled with the container colour and the rail with
+        // the surface one, so each has to be asked for the role it was
+        // inflated with.
+        val navigationIsRail = navigation is NavigationRailView
+
+        val surface = color(binding.fragmentContainer, colorSurface) { it.surface }
+        val surfaceContainerLow =
+            color(sheet, colorSurfaceContainerLow) { it.surfaceContainerLow }
+        val navigationContainer = color(
+            navigation,
+            if (navigationIsRail) colorSurface else colorSurfaceContainer
+        ) { if (navigationIsRail) it.surface else it.surfaceContainer }
+        val secondaryContainer =
+            color(navigation, colorSecondaryContainer) { it.secondaryContainer }
+        val onSecondaryContainer =
+            color(navigation, colorOnSecondaryContainer) { it.onSecondaryContainer }
+        val onSurfaceVariant = color(navigation, colorOnSurfaceVariant) { it.onSurfaceVariant }
+        val secondary = color(navigation, colorSecondary) { it.secondary }
+
+        coverColorAnimators += binding.fragmentContainer.animateBackgroundColor(
+            surface, COVER_COLOR_ANIMATION_DURATION
+        )
+        coverColorAnimators += sheet.animateTintColor(
+            sheet.backgroundTintList?.defaultColor ?: surfaceContainerLow,
+            surfaceContainerLow,
+            COVER_COLOR_ANIMATION_DURATION
+        )
+        coverColorAnimators += navigation.animateTintColor(
+            navigation.backgroundTintList?.defaultColor ?: navigationContainer,
+            navigationContainer,
+            COVER_COLOR_ANIMATION_DURATION
+        )
+        navigation.itemIconTintList =
+            navigationItemColors(onSecondaryContainer, onSurfaceVariant)
+        navigation.itemTextColor = navigationItemColors(secondary, onSurfaceVariant)
+        navigation.itemActiveIndicatorColor = ColorStateList.valueOf(secondaryContainer)
+
+        // The tint helpers hand back unstarted animators (the player runs
+        // them through an AnimatorSet), so they have to be kicked off here.
+        coverColorAnimators.forEach(Animator::start)
+    }
+
+    /** Checked first: ColorStateList stops at the first matching state. */
+    private fun navigationItemColors(checked: Int, unchecked: Int) = ColorStateList(
+        arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+        intArrayOf(checked, unchecked)
+    )
+
     private fun onPaletteColorChanged() {
         if (panelState == STATE_EXPANDED) {
             val isColorLight = paletteColor.isColorLight
@@ -577,6 +710,17 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
                 }
             }
             LIBRARY_CATEGORIES -> updateTabs()
+            COVER_COLOR -> lifecycleScope.launch {
+                // Toggling either way has to rebuild this activity, which is
+                // themed from the cover seed and cannot be repainted out of
+                // it. The palette must exist (or be cleared) before the
+                // recreation: every screen resolves its theme while the new
+                // activity is being created, and the cover load is async, so
+                // a recreation racing it would leave e.g. the settings
+                // elements in the previous theme.
+                publishCoverPalette(playerViewModel.currentSong)
+                recreate()
+            }
             NOW_PLAYING_SCREEN -> {
                 chooseFragmentForTheme()
                 slidingPanel.updateLayoutParams<ViewGroup.LayoutParams> {
@@ -683,5 +827,24 @@ abstract class AbsSlidingMusicPanelActivity : AbsBaseActivity(),
         // reconnects (service recreated in background) before hiding the
         // sheet; a real queue clear stays empty and is still honored.
         private const val QUEUE_EMPTY_HIDE_DELAY_MS = 500L
+
+        // Comfortably above the 32x32 the extractor works on, and far below
+        // what the covers are shown at, so this never drives a big decode.
+        private const val COVER_SAMPLE_SIZE = 64
+        private const val COVER_COLOR_ANIMATION_DURATION = 300L
+
+        // The roles Material gives each piece of the library chrome.
+        private val colorSurface = com.google.android.material.R.attr.colorSurface
+        private val colorSurfaceContainer =
+            com.google.android.material.R.attr.colorSurfaceContainer
+        private val colorSurfaceContainerLow =
+            com.google.android.material.R.attr.colorSurfaceContainerLow
+        private val colorSecondaryContainer =
+            com.google.android.material.R.attr.colorSecondaryContainer
+        private val colorOnSecondaryContainer =
+            com.google.android.material.R.attr.colorOnSecondaryContainer
+        private val colorOnSurfaceVariant =
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        private val colorSecondary = com.google.android.material.R.attr.colorSecondary
     }
 }

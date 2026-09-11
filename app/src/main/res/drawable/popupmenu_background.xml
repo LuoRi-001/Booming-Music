@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The theme colour the menu falls back to while the cover palette is off. -->
     <item>
         <shape>
             <solid android:color="?attr/colorSurface" />
             <corners android:radius="@dimen/m3_popup_window_corner_size" />
         </shape>
+    </item>
+    <!-- Paints the same rounded rectangle with the cover palette; a drawable
+         inflated by name gets no attributes, so it reads the radius itself. -->
+    <item>
+        <com.mardous.booming.ui.component.views.CoverSurfaceDrawable />
     </item>
     <item>
         <shape>

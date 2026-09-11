@@ -115,6 +115,13 @@
 -keep interface coil3.fetch.Fetcher { *; }
 -keep interface coil3.fetch.Fetcher$Factory { *; }
 
+# Painted with the cover palette; referenced by name from popupmenu_background.xml, where the
+# framework instantiates it through a no-argument constructor looked up by reflection, so R8 would
+# otherwise rename or remove it and leave popup menus without a background.
+-keep class com.mardous.booming.ui.component.views.CoverSurfaceDrawable {
+    public <init>();
+}
+
 # Keep the fast scroller thumb view accessible via reflection (long-press scroller activation)
 -keepclassmembers class me.zhanghai.android.fastscroll.FastScroller {
     private android.view.View mThumbView;

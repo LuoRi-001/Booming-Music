@@ -4,12 +4,15 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import com.mardous.booming.R
 import com.mardous.booming.core.model.player.PlayerColorScheme
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.util.Preferences
 
 private val lightScheme = lightColorScheme(
@@ -95,7 +98,13 @@ fun BoomingMusicTheme(
     dynamicColor: Boolean = Preferences.isMaterialYouTheme,
     content: @Composable () -> Unit
 ) {
+    val coverScheme by CoverColorState.scheme.collectAsState()
+
     var colorScheme = when {
+        // The cover palette, when in use, is already the one every XML screen
+        // of this activity was themed with, so it has to win here too.
+        coverScheme != null -> coverScheme!!.forNightMode(darkTheme)
+
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

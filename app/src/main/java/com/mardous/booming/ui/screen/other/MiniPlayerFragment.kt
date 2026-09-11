@@ -18,19 +18,25 @@
 package com.mardous.booming.ui.screen.other
 
 import android.annotation.SuppressLint
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.text.style.ForegroundColorSpan
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import coil3.request.Disposable
+import com.google.android.material.color.MaterialColors
 import com.mardous.booming.R
 import com.mardous.booming.coil.songImage
 import com.mardous.booming.core.model.player.ProgressState
 import com.mardous.booming.core.model.theme.NowPlayingButtonStyle
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.databinding.FragmentMiniPlayerBinding
+import com.mardous.booming.extensions.isNightMode
 import com.mardous.booming.extensions.isTablet
 import com.mardous.booming.extensions.launchAndRepeatWithViewLifecycle
 import com.mardous.booming.extensions.media.displayArtistName
@@ -98,6 +104,29 @@ class MiniPlayerFragment : Fragment(R.layout.fragment_mini_player),
         }
         primaryColorSpan = textColorPrimary().toForegroundColorSpan()
         secondaryColorSpan = textColorSecondary().toForegroundColorSpan()
+        // The strip background is repainted by the activity, but the ring, its
+        // track and the play icon are inflated with theme colours and would
+        // only follow a song change after a recreate; repaint them from the
+        // palette. Both halves of the ring have to be repainted: the wave
+        // style leaves the track on its secondary container role, so an
+        // indicator only fix still leaves a theme coloured ring behind it.
+        viewLifecycleOwner.launchAndRepeatWithViewLifecycle {
+            CoverColorState.scheme.collect { published ->
+                val scheme = published.takeIf { CoverColorState.isEnabled }
+                val colorScheme = scheme?.forNightMode(resources.isNightMode)
+                val primary = colorScheme?.primary?.toArgb()
+                    ?: MaterialColors.getColor(view, androidx.appcompat.R.attr.colorPrimary, Color.TRANSPARENT)
+                val track = colorScheme?.secondaryContainer?.toArgb()
+                    ?: MaterialColors.getColor(
+                        view,
+                        com.google.android.material.R.attr.colorSecondaryContainer,
+                        Color.TRANSPARENT
+                    )
+                binding.progressBar.setIndicatorColor(primary)
+                binding.progressBar.setTrackColor(track)
+                binding.actionPlayPause.iconTint = ColorStateList.valueOf(primary)
+            }
+        }
         setupImageStyle()
         setUpButtons()
         setUpProgressStyle()

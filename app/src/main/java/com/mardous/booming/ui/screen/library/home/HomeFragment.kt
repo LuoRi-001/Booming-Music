@@ -8,6 +8,8 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
@@ -109,13 +111,25 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     // Cold-start rendezvous: the suggestions sections and the recommendations
     // collage ride two parallel pipelines (suggestions query vs songs query +
-    // cover pre-decode) that finish a frame apart, which made the blocks pop
-    // in one after another. Whichever finishes first holds here until both
-    // are present, then everything is published from a single main-thread
-    // message and lands in the same frame.
+    // cover pre-decode) that finish a frame apart. Whichever finishes first
+    // holds here until both are present.
     private var pendingResult: SuggestedResult? = null
     private var pendingPicks: List<Song>? = null
     private var contentPublished = false
+
+    // Set by the SideEffect below once the composition has applied the picks.
+    // A composition applies a frame or two after the state write (state
+    // write → handler message → suspended job → next frame's callback), so
+    // publishHomeContent can't know whether the pre-fed picks are drawable
+    // yet without this flag: if they are, the section can be revealed in the
+    // same message that publishes the sections (fast path); if not, the
+    // sections wait for the SideEffect so they can't be drawn a frame ahead
+    // of the collage.
+    private var collageReady = mutableStateOf(false)
+
+    // Holds the sections' data while the collage's composition (fed in
+    // onPicksReady) has not been applied yet. Consumed by onCollageApplied.
+    private var unpublishedResult: SuggestedResult? = null
 
     // Warm accent color for shuffle button — picked once per fragment lifetime
     private val warmShuffleColor: Long = WARM_COLORS.random()
@@ -198,6 +212,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                     if (contentPublished) {
                         // Later refreshes (e.g. the library changed) publish
                         // directly — the first frame already happened.
+                        unpublishedResult = null
                         publishResultNow(result)
                     } else {
                         pendingResult = result
@@ -231,21 +246,43 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     private fun setupRecommendations() {
         binding.recommendationsSection.apply {
+            // GONE while waiting, but never idle: a GONE ComposeView still
+            // runs — and applies — its composition, it just never measures
+            // or draws. So the picks fed in onPicksReady settle into the
+            // composition invisibly while the suggestions query finishes,
+            // and the section's first visible traversal can already carry
+            // them (see publishHomeContent / onCollageApplied).
             visibility = View.GONE
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 BoomingMusicTheme {
-                    YourRecommendationsSection(
-                        songs = songState.value,
-                        refreshKey = refreshKey.value,
-                        shuffleColor = warmShuffleColor,
-                        onSongClick = { song -> onRecommendationSongClick(song) },
-                        onShuffleClick = { onRecommendationShuffleClick() }
-                    )
+                    CollageContent()
                 }
             }
         }
         loadRecommendations()
+    }
+
+    @Composable
+    private fun CollageContent() {
+        if (songState.value.isNotEmpty()) {
+            // Runs right after the composition carrying the picks has been
+            // applied — regardless of whether the view is still GONE. Marks
+            // the pre-fed picks drawable and publishes the held sections
+            // from that exact moment, so they can never be drawn a frame
+            // ahead of the collage.
+            SideEffect {
+                collageReady.value = true
+                onCollageApplied()
+            }
+        }
+        YourRecommendationsSection(
+            songs = songState.value,
+            refreshKey = refreshKey.value,
+            shuffleColor = warmShuffleColor,
+            onSongClick = { song -> onRecommendationSongClick(song) },
+            onShuffleClick = { onRecommendationShuffleClick() }
+        )
     }
 
     private fun loadRecommendations() {
@@ -265,9 +302,16 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     private fun pickRandomSongs() {
         if (allCachedSongs.isEmpty()) {
-            // No songs at all: the collage can't render, but the sections
-            // must not be held waiting for it.
-            onPicksReady(emptyList())
+            // Empty means "query hasn't delivered yet" while isSongsLoaded is
+            // false, and "library has no songs at all" once it has. Only the
+            // second case may feed empty picks: onResume fires before the
+            // songs observer delivers, and an empty list published here would
+            // take the EMPTY branch in publishHomeContent, letting the
+            // sections paint a frame or two ahead of the collage. The
+            // observer calls this again when the query delivers.
+            if (isSongsLoaded) {
+                onPicksReady(emptyList())
+            }
             return
         }
         val picks = allCachedSongs.shuffled().take(5)
@@ -303,12 +347,19 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
 
     private fun onPicksReady(picks: List<Song>) {
         if (contentPublished) {
-            // Re-entry refresh: the section is already on screen, just swap
-            // the picks (their covers were pre-decoded above).
+            // Re-entry refresh: setupRecommendations re-created the view
+            // (and re-hid the section), so reveal it again with the new
+            // picks — their covers were pre-decoded above.
+            binding.recommendationsSection.visibility = View.VISIBLE
             songState.value = picks
             refreshKey.value = System.nanoTime()
-            binding.recommendationsSection.visibility = View.VISIBLE
         } else {
+            // Feed the picks to the composition right away. The section is
+            // still GONE, so the recomposition applies invisibly while the
+            // suggestions query finishes — the pre-warm that lets the fast
+            // path in publishHomeContent exist.
+            songState.value = picks
+            refreshKey.value = System.nanoTime()
             pendingPicks = picks
             publishHomeContent()
         }
@@ -320,25 +371,31 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
         pendingResult = null
         pendingPicks = null
         contentPublished = true
-        // Step 1: feed the collage's composition while its ComposeView is
-        // still GONE. The new content only lands on the next frame's
-        // recomposition tick — a GONE ComposeView composes but never
-        // measures.
-        songState.value = picks
-        refreshKey.value = System.nanoTime()
-        // Step 2, one frame later: reveal the collage and publish the
-        // sections from the same message, so both draw in the same
-        // traversal. Publishing the sections in step 1's message would let
-        // them render a frame before the collage's recomposition had been
-        // applied, which read as the collage "popping in" late.
-        val section = binding.recommendationsSection
-        section.post {
-            if (_binding == null) return@post
-            if (picks.isNotEmpty()) {
-                section.visibility = View.VISIBLE
-            }
+        if (picks.isEmpty()) {
+            // No collage will ever appear — publish the sections right away.
             publishResultNow(result)
+        } else if (collageReady.value) {
+            // Fast path: the pre-fed picks are already applied to the still
+            // GONE composition. Revealing the section now makes its first
+            // measure/draw carry the full collage, in the same traversal as
+            // the sections' relayout below — same frame, no extra waiting.
+            binding.recommendationsSection.visibility = View.VISIBLE
+            publishResultNow(result)
+        } else {
+            // The suggestions query beat the composition's application (it
+            // lands a frame or two after the write). Hold the sections; the
+            // SideEffect fires the moment the picks are applied and
+            // publishes them from inside that frame, so the sections can
+            // never be drawn ahead of the collage.
+            unpublishedResult = result
         }
+    }
+
+    private fun onCollageApplied() {
+        val result = unpublishedResult ?: return
+        unpublishedResult = null
+        binding.recommendationsSection.visibility = View.VISIBLE
+        publishResultNow(result)
     }
 
     private fun publishResultNow(result: SuggestedResult) {
@@ -475,6 +532,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
     @Suppress("UNCHECKED_CAST")
     override fun createSuggestionAdapter(suggestion: Suggestion): RecyclerView.Adapter<*> {
         return when (suggestion.type) {
+            ContentType.TopArtists,
             ContentType.RecentArtists -> ArtistAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Artist>),
@@ -482,6 +540,7 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 callback = this
             )
 
+            ContentType.TopAlbums,
             ContentType.RecentAlbums -> AlbumAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Album>),
@@ -489,14 +548,16 @@ class HomeFragment : AbsMainActivityFragment(R.layout.fragment_home),
                 callback = this
             )
 
-            ContentType.History -> SongAdapter(
+            ContentType.TopTracks,
+            ContentType.History,
+            ContentType.RecentSongs,
+            ContentType.Favorites,
+            ContentType.NotRecentlyPlayed -> SongAdapter(
                 activity = mainActivity,
                 dataSet = (suggestion.items as List<Song>),
                 itemLayoutRes = R.layout.item_image,
                 callback = this
             )
-
-            else -> throw IllegalArgumentException("Unexpected suggestion type: ${suggestion.type}")
         }
     }
 

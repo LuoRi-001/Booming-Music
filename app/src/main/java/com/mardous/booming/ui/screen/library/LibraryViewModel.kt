@@ -186,7 +186,8 @@ class LibraryViewModel(
             ?: SuggestedResult(SuggestedResult.State.Loading)
         suggestions.postValue(currentValue)
 
-        val data = repository.homeSuggestions()
+        val types = Preferences.homeCards.filter { it.visible }.map { it.type }
+        val data = repository.homeSuggestions(types)
         suggestions.postValue(SuggestedResult(SuggestedResult.State.Ready, data))
     }
 
@@ -349,7 +350,10 @@ class LibraryViewModel(
 
 
     fun lastAddedSongs(): LiveData<List<Song>> = liveData(IO) {
-        emit(repository.recentSongs())
+        // repository.recentSongs() maps to the history table (recently
+        // *played*); the overload that takes a content type is the one that
+        // sorts the library by DATE_ADDED, which is what "last added" means.
+        emit(repository.recentSongs("", ContentType.RecentSongs))
     }
 
     fun favoriteSongsFlow() = repository.favoriteSongsFlow()
@@ -376,15 +380,16 @@ class LibraryViewModel(
 
     // Scroll position of the listening stats screen, kept in this activity-
     // scoped ViewModel so it survives fragment recreation when leaving and
-    // re-entering the screen.
-    var statsScrollIndex: Int = 0
-        private set
-    var statsScrollOffset: Int = 0
-        private set
+    // re-entering the screen. Keyed by time range: each range is a page of the
+    // horizontal pager and keeps its own position.
+    private val statsScrollPositions = mutableMapOf<StatsTimeRange, Pair<Int, Int>>()
 
-    fun saveStatsScrollPosition(index: Int, offset: Int) {
-        statsScrollIndex = index
-        statsScrollOffset = offset
+    fun statsScrollIndex(range: StatsTimeRange): Int = statsScrollPositions[range]?.first ?: 0
+
+    fun statsScrollOffset(range: StatsTimeRange): Int = statsScrollPositions[range]?.second ?: 0
+
+    fun saveStatsScrollPosition(range: StatsTimeRange, index: Int, offset: Int) {
+        statsScrollPositions[range] = index to offset
     }
 
     // Last measured height (px) of the listening stats card on the home

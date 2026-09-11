@@ -27,6 +27,7 @@ import com.google.android.material.navigation.NavigationBarView.LabelVisibility
 import com.mardous.booming.R
 import com.mardous.booming.core.model.CategoryInfo
 import com.mardous.booming.core.model.Cutoff
+import com.mardous.booming.core.model.HomeCardInfo
 import com.mardous.booming.core.model.action.FolderAction
 import com.mardous.booming.core.model.action.NowPlayingAction
 import com.mardous.booming.core.model.action.QueueClearingBehavior
@@ -37,6 +38,7 @@ import com.mardous.booming.core.model.player.PlayerTransition
 import com.mardous.booming.core.model.shuffle.GroupShuffleMode
 import com.mardous.booming.core.model.theme.AppTheme
 import com.mardous.booming.core.model.theme.NowPlayingScreen
+import com.mardous.booming.data.model.ContentType
 import com.mardous.booming.extensions.files.getCanonicalPathSafe
 import com.mardous.booming.extensions.hasQ
 import com.mardous.booming.extensions.hasS
@@ -102,6 +104,17 @@ object Preferences : KoinComponent {
     val isMaterialYouTheme: Boolean
         get() = preferences.getBoolean(MATERIAL_YOU, hasS())
 
+    val isCoverColorEnabled: Boolean
+        get() = preferences.getBoolean(COVER_COLOR, false)
+
+    /**
+     * Persisted so activities started later can theme themselves from the
+     * cover the library screen is already using. 0 means "no cover yet".
+     */
+    var coverColorSeed: Int
+        get() = preferences.getInt(COVER_COLOR_SEED, 0)
+        set(value) = preferences.edit { putInt(COVER_COLOR_SEED, value) }
+
     val isCustomFont: Boolean
         get() = preferences.getBoolean(USE_CUSTOM_FONT, true)
 
@@ -122,6 +135,22 @@ object Preferences : KoinComponent {
         CategoryInfo.Category.entries.mapIndexed { index, category ->
             CategoryInfo(category, index < CategoryInfo.MAX_VISIBLE_CATEGORIES)
         }
+
+    var homeCards: List<HomeCardInfo>
+        get() = preferences.nullString(HOME_CARDS).deserialize(getDefaultHomeCardInfos())
+        set(cards) = preferences.edit { putString(HOME_CARDS, cards.serialize()) }
+
+    // Keep the order of the visible cards identical to the one the home screen
+    // shipped with, so an existing library looks unchanged until the user
+    // opts into a different set.
+    fun getDefaultHomeCardInfos(): List<HomeCardInfo> {
+        val visibleByDefault = listOf(
+            ContentType.History, ContentType.RecentAlbums, ContentType.RecentArtists
+        )
+        return visibleByDefault.map { HomeCardInfo(it, true) } +
+                ContentType.entries.filterNot { it in visibleByDefault }
+                    .map { HomeCardInfo(it, false) }
+    }
 
     val isRememberLastPage: Boolean
         get() = preferences.getBoolean(REMEMBER_LAST_PAGE, true)
@@ -562,10 +591,13 @@ interface UpdateSearchMode {
 
 const val BLACK_THEME = "black_theme"
 const val MATERIAL_YOU = "material_you"
+const val COVER_COLOR = "cover_color"
+const val COVER_COLOR_SEED = "cover_color_seed"
 const val USE_CUSTOM_FONT = "use_custom_font"
 const val APPBAR_MODE = "appbar_mode"
 const val GENERAL_THEME = "general_theme"
 const val LIBRARY_CATEGORIES = "library_categories"
+const val HOME_CARDS = "home_cards"
 const val REMEMBER_LAST_PAGE = "remember_last_page"
 const val TAB_TITLES_MODE = "tab_titles_mode"
 const val HOLD_TAB_TO_SEARCH = "hold_tab_to_search"

@@ -1,0 +1,50 @@
+/*
+ * Copyright (c) 2024 Christians Martínez Alvarado
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package com.mardous.booming.ui.adapters.preference
+
+import android.annotation.SuppressLint
+import com.mardous.booming.R
+import com.mardous.booming.core.model.HomeCardInfo
+import com.mardous.booming.extensions.showToast
+import com.mardous.booming.ui.adapters.DraggableItemAdapter
+
+class HomeCardInfoAdapter(
+    homeCards: MutableList<HomeCardInfo>
+) : DraggableItemAdapter<HomeCardInfo>(homeCards) {
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        super.onBindViewHolder(holder, position)
+        val homeCard = items[position]
+
+        holder.title.text = holder.title.resources.getString(homeCard.type.titleRes)
+        holder.checkBox.isChecked = homeCard.visible
+
+        holder.itemView.setOnClickListener {
+            if (homeCard.visible && isLastCheckedCard(homeCard)) {
+                holder.itemView.context.showToast(R.string.you_have_to_select_at_least_one_category)
+                return@setOnClickListener
+            }
+            homeCard.visible = !homeCard.visible
+            holder.checkBox.isChecked = homeCard.visible
+        }
+    }
+
+    private fun isLastCheckedCard(homeCard: HomeCardInfo): Boolean =
+        items.none { it != homeCard && it.visible }
+}

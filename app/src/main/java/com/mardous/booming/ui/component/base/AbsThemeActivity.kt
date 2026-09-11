@@ -30,6 +30,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.DynamicColorsOptions
 import com.mardous.booming.R
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.extensions.createAppTheme
 import com.mardous.booming.extensions.hasQ
 import com.mardous.booming.extensions.resources.isColorLight
@@ -42,6 +43,16 @@ import com.mardous.booming.util.Preferences
 abstract class AbsThemeActivity : AppCompatActivity() {
 
     private var windowInsetsController: WindowInsetsControllerCompat? = null
+
+    // The seed this activity's theme was built from. Screens whose content is
+    // made of theme colours, rather than of a handful of views that can be
+    // repainted, compare it against the palette of the moment: they are the
+    // ones that can only be brought up to date by rebuilding the activity.
+    private var themedCoverSeed: Int? = null
+
+    /** True when the cover palette moved on after this activity was themed. */
+    val isCoverThemeStale: Boolean
+        get() = CoverColorState.activeSeed.let { it != null && it != themedCoverSeed }
 
     @SuppressLint("SourceLockedOrientationActivity")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +85,10 @@ abstract class AbsThemeActivity : AppCompatActivity() {
             }
             DynamicColors.applyToActivityIfAvailable(this, dynamicColorsOptions.build())
         }
+        // Only a theme that was actually built from the cover is worth
+        // comparing later: with the feature off the theme falls back to its
+        // own seed, and "stale" would then mean recreating forever.
+        themedCoverSeed = CoverColorState.activeSeed.takeIf { appTheme.seedColor == it }
         if (Preferences.isCustomFont) {
             setTheme(R.style.CustomFontThemeOverlay)
         }

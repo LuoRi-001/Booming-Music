@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -64,10 +65,17 @@ fun ListeningStatsCard(
         timelineBars.take(7) + List(7 - timelineBars.size) { TimelineBar("", 0L) }
     }
 
+    // The card is inset in its host, and the host is a ComposeView that is
+    // filled with the window background, so that inset is what shows around
+    // the card as a white ring. Drawn here — outside the padding, and so
+    // behind the card's own surface — it follows the cover palette instead.
+    val ringColor = MaterialTheme.colorScheme.surface
+
     Card(
         onClick = onCardClick,
         modifier = modifier
             .fillMaxWidth()
+            .drawBehind { drawRect(ringColor) }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),

@@ -262,13 +262,18 @@
         android:hint="@string/lyrics"
         app:layout_constraintTop_toBottomOf="@+id/disc_number_text_input_layout">
 
+        <!-- Fixed height and top gravity on purpose. A wrap_content multi-line
+             field grows by a line whenever the text rewraps, which re-solves
+             this ConstraintLayout and re-measures everything below it; the
+             scroll container (and the window, while the keyboard is up) then
+             shifts under the caret on the keystroke that caused it. -->
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/lyrics"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
+            android:layout_height="180dp"
+            android:gravity="top|start"
             android:inputType="textMultiLine"
-            android:maxLines="15"
+            android:scrollbars="vertical"
             tools:ignore="Autofill"/>
 
     </com.google.android.material.textfield.TextInputLayout>

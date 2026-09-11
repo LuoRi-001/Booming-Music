@@ -21,6 +21,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.view.KeyEvent
@@ -44,9 +46,12 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView.AdapterDataObserver
 import androidx.transition.TransitionManager
+import androidx.compose.ui.graphics.toArgb
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.color.MaterialColors
 import com.mardous.booming.R
+import com.mardous.booming.core.palette.CoverColorState
 import com.mardous.booming.data.SearchFilter
 import com.mardous.booming.data.local.room.PlaylistWithSongs
 import com.mardous.booming.data.model.Album
@@ -59,6 +64,7 @@ import com.mardous.booming.extensions.applyHorizontalWindowInsets
 import com.mardous.booming.extensions.dip
 import com.mardous.booming.extensions.hideSoftKeyboard
 import com.mardous.booming.extensions.isEmpty
+import com.mardous.booming.extensions.isNightMode
 import com.mardous.booming.extensions.launchAndRepeatWithViewLifecycle
 import com.mardous.booming.extensions.materialSharedAxis
 import com.mardous.booming.extensions.navigation.albumDetailArgs
@@ -147,6 +153,72 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         }
 
         binding.appBar.setupStatusBarForeground()
+        // The whole top block — bar, strip behind the status bar and the
+        // keyboard button — is made of theme colours resolved when this screen
+        // was inflated, which for a screen the user keeps coming back to would
+        // mean the palette of an old song.
+        viewLifecycleOwner.launchAndRepeatWithViewLifecycle {
+            CoverColorState.scheme.collect { published ->
+                val colorScheme = published.takeIf { CoverColorState.isEnabled }
+                    ?.forNightMode(resources.isNightMode)
+                val surface = colorScheme?.surface?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.appBar, com.google.android.material.R.attr.colorSurface, Color.TRANSPARENT
+                    )
+                val primaryContainer = colorScheme?.primaryContainer?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.keyboardPopup,
+                        com.google.android.material.R.attr.colorPrimaryContainer,
+                        Color.TRANSPARENT
+                    )
+                val onPrimaryContainer = colorScheme?.onPrimaryContainer?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.keyboardPopup,
+                        com.google.android.material.R.attr.colorOnPrimaryContainer,
+                        Color.TRANSPARENT
+                    )
+                binding.appBar.setBackgroundColor(surface)
+                binding.toolbar.setBackgroundColor(surface)
+                // Tinted in place rather than replaced: the bar only keeps the
+                // strip in step with its own colour while the strip is a
+                // drawable it recognises.
+                binding.appBar.statusBarForeground?.setTint(surface)
+                binding.keyboardPopup.backgroundTintList = ColorStateList.valueOf(primaryContainer)
+                binding.keyboardPopup.iconTint = ColorStateList.valueOf(onPrimaryContainer)
+                binding.keyboardPopup.setTextColor(onPrimaryContainer)
+                // The song/album/artist chips are checkable filled buttons, which
+                // the style paints ?colorSurfaceContainer while unselected and
+                // ?colorPrimary once picked — a near white row of chips until the
+                // activity is recreated. Repainted here as the same pair of roles,
+                // so the selected chip stays the one that stands out.
+                val surfaceContainer = colorScheme?.surfaceContainer?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.modeButtonGroup,
+                        com.google.android.material.R.attr.colorSurfaceContainer,
+                        Color.TRANSPARENT
+                    )
+                val primary = colorScheme?.primary?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.modeButtonGroup, androidx.appcompat.R.attr.colorPrimary, Color.TRANSPARENT
+                    )
+                val onPrimary = colorScheme?.onPrimary?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.modeButtonGroup, com.google.android.material.R.attr.colorOnPrimary, Color.TRANSPARENT
+                    )
+                val onSurfaceVariant = colorScheme?.onSurfaceVariant?.toArgb()
+                    ?: MaterialColors.getColor(
+                        binding.modeButtonGroup,
+                        com.google.android.material.R.attr.colorOnSurfaceVariant,
+                        Color.TRANSPARENT
+                    )
+                binding.modeButtonGroup.children.filterIsInstance<MaterialButton>().forEach { button ->
+                    button.backgroundTintList = checkedPairTint(surfaceContainer, primary)
+                    val label = checkedPairTint(onSurfaceVariant, onPrimary)
+                    button.setTextColor(label)
+                    button.iconTint = label
+                }
+            }
+        }
         binding.toolbar.setNavigationOnClickListener {
             findNavController().navigateUp()
         }
@@ -321,6 +393,16 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     override fun genreClick(genre: Genre) {
         findNavController().navigate(R.id.nav_genre_detail, genreDetailArgs(genre))
     }
+
+    // Unselected/selected pair for the mode chips, mirroring the state list
+    // Material's own button selector would have resolved against the theme.
+    private fun checkedPairTint(unchecked: Int, checked: Int) = ColorStateList(
+        arrayOf(
+            intArrayOf(android.R.attr.state_checkable, android.R.attr.state_checked),
+            intArrayOf()
+        ),
+        intArrayOf(checked, unchecked)
+    )
 
     private fun search(query: String?) {
         if (query == null) return
